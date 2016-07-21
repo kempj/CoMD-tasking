@@ -150,8 +150,9 @@ void ljPrint(FILE* file, BasePotential* pot)
     fprintf(file, "  Sigma            : "FMT1" Angstroms\n", ljPot->sigma);
 }
 
-void calc_force(int iBox, int jBox, int nJBox, SimFlat *s)
+void calc_force(int iBox, int jBox, SimFlat *s)
 {
+    int nJBox = s->boxes->nAtoms[jBox];
     LjPotential* pot = (LjPotential *) s->pot;
     real_t rCut = pot->cutoff;
     int sigma = pot->sigma;
@@ -194,14 +195,14 @@ void calc_force(int iBox, int jBox, int nJBox, SimFlat *s)
     }
 }
 
+//calculates the force on atoms in a box.
 void boxForce(int iBox, SimFlat *s)
 {
     int nNbrBoxes = 27;
     for (int jTmp=0; jTmp < nNbrBoxes; jTmp++) {
         int jBox  = s->boxes->nbrBoxes[iBox][jTmp];
-        int nJBox = s->boxes->nAtoms[jBox];
         if (iBox > jBox) continue;
-        calc_force(iBox, jBox, nJBox, s);
+        calc_force(iBox, jBox, s);
     }
 }
 
