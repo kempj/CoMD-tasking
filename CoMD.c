@@ -112,7 +112,7 @@ int main(int argc, char** argv)
    const int printRate = sim->printRate;
    int iStep = 0;
    profileStart(loopTimer);
-   for (; iStep<nSteps; iStep += printRate)
+   for (; iStep<nSteps; )
    {
       startTimer(commReduceTimer);
       sumAtoms(sim);
@@ -123,6 +123,7 @@ int main(int argc, char** argv)
       startTimer(timestepTimer);
       timestep(sim, printRate, sim->dt);
       stopTimer(timestepTimer);
+      iStep += printRate;
 
    }
    profileStop(loopTimer);
