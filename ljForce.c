@@ -101,6 +101,7 @@ static double ePot_tp;
 #pragma omp threadprivate (ePot_tp)
 static real3* force_tp;
 #pragma omp threadprivate (force_tp)
+static real3* force = NULL;
 
 
 void ljDestroy(BasePotential** inppot)
@@ -150,8 +151,16 @@ void ljPrint(FILE* file, BasePotential* pot)
 }
 
 
-void calc_internal_force(int Box, int nJBox, SimFlat *s, int rCut2, int s6, int eShift, int epsilon)
+void calc_internal_force(int Box, int nJBox, SimFlat *s)
 {
+    LjPotential* pot = (LjPotential *) s->pot;
+    real_t rCut = pot->cutoff;
+    int sigma = pot->sigma;
+    int epsilon = pot->epsilon;
+    real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
+    real_t rCut2 = rCut*rCut;
+    real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
+    real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
     int nIBox = s->boxes->nAtoms[Box];
     // loop over atoms in Box
     for (int iOff=MAXATOMS*Box; iOff<(Box*MAXATOMS+nIBox); iOff++) {
@@ -185,17 +194,27 @@ void calc_internal_force(int Box, int nJBox, SimFlat *s, int rCut2, int s6, int 
                     force_tp[jOff][m] += dr[m]*fr;
                 }
             }
-        } // loop over atoms in jBox
-    } // loop over atoms in iBox
+        }
+    }
 }
 
-void calc_force(int iBox, int jBox, int nJBox, SimFlat *s, int rCut2, int s6, int eShift, int epsilon)
+void calc_force(int iBox, int jBox, int nJBox, SimFlat *s)
 {
+    LjPotential* pot = (LjPotential *) s->pot;
+    real_t rCut = pot->cutoff;
+    int sigma = pot->sigma;
+    int epsilon = pot->epsilon;
+    real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
+    real_t rCut2 = rCut*rCut;
+    real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
+    real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
     int nIBox = s->boxes->nAtoms[iBox];
     // loop over atoms in iBox
     for (int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
         // loop over atoms in jBox
         for (int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
+            //if (jBox == iBox && jOff <= iOff)
+            //    continue; 
             real3 dr;
             real_t r2 = 0.0;
             for (int m=0; m<3; m++) {
@@ -229,20 +248,7 @@ void calc_force(int iBox, int jBox, int nJBox, SimFlat *s, int rCut2, int s6, in
 
 int ljForce(SimFlat* s)
 {
-    LjPotential* pot = (LjPotential *) s->pot;
-    real_t sigma = pot->sigma;
-    real_t epsilon = pot->epsilon;
-    real_t rCut = pot->cutoff;
-    real_t rCut2 = rCut*rCut;
-
-    real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
-    real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
-    real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
     int nNbrBoxes = 27;
-
-    static real3* force = NULL;
-
-    // zero forces and energy
     real_t ePot = 0.0;
     s->ePotential = 0.0;
     int fSize = s->boxes->nTotalBoxes*MAXATOMS;
@@ -266,28 +272,27 @@ int ljForce(SimFlat* s)
     ePot_tp = 0;
 #pragma omp single
     {
-    // loop over local boxes
+    //Possible to split tasks over each box?
     for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
-        // loop over neighbors of iBox
         for (int jTmp=0; jTmp < nNbrBoxes; jTmp++) {
             int jBox  = s->boxes->nbrBoxes[iBox][jTmp];
             int nJBox = s->boxes->nAtoms[jBox];
             if (iBox > jBox) continue;
             if(iBox == jBox) {
 #pragma omp task
-                calc_internal_force(iBox, nJBox, s, rCut2, s6, eShift, epsilon);
+                calc_internal_force(iBox, nJBox, s);
             }
 #pragma omp task 
-            calc_force(iBox, jBox, nJBox, s, rCut2, s6, eShift, epsilon);
-
-        } // loop over neighbor boxes
-    } // loop over local boxes in system
+            calc_force(iBox, jBox, nJBox, s);
+        }
+    }
     } //end single
 #pragma omp taskwait
 #pragma omp critical
         ePot += ePot_tp;
     } //end parallel
 
+    //This is the output
     // reduce thread private forces into s->atoms->f
 #pragma omp parallel for
     for (int ii=0; ii<fSize; ++ii) {
@@ -298,8 +303,9 @@ int ljForce(SimFlat* s)
         }
     }
 
-    ePot = ePot*4.0*epsilon;
-    s->ePotential = ePot;
+    //What requieres the updated s->ePotential
+    //print , KE, and validate.
+    s->ePotential = ePot*4.0*((LjPotential*)s->pot)->epsilon;
 
     return 0;
 }
