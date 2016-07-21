@@ -96,6 +96,13 @@ typedef struct LjPotentialSt
 static int ljForce(SimFlat* s);
 static void ljPrint(FILE* file, BasePotential* pot);
 
+
+static double ePot_tp;
+#pragma omp threadprivate (ePot_tp)
+static real3* force_tp;
+#pragma omp threadprivate (force_tp)
+
+
 void ljDestroy(BasePotential** inppot)
 {
     if ( ! inppot ) return;
@@ -142,6 +149,84 @@ void ljPrint(FILE* file, BasePotential* pot)
     fprintf(file, "  Sigma            : "FMT1" Angstroms\n", ljPot->sigma);
 }
 
+
+void calc_internal_force(int Box, int nJBox, SimFlat *s, int rCut2, int s6, int eShift, int epsilon)
+{
+    int nIBox = s->boxes->nAtoms[Box];
+    // loop over atoms in Box
+    for (int iOff=MAXATOMS*Box; iOff<(Box*MAXATOMS+nIBox); iOff++) {
+        // loop over atoms in jBox
+        for (int jOff=Box*MAXATOMS; jOff<(Box*MAXATOMS+nJBox); jOff++) {
+            if (jOff <= iOff) //Can probably do a task special for local 
+                continue; 
+            real3 dr;
+            real_t r2 = 0.0;
+            for (int m=0; m<3; m++) {
+                dr[m] = s->atoms->r[iOff][m] - s->atoms->r[jOff][m];//12 bn cycles
+                r2+=dr[m]*dr[m];//5 bn cycles
+            }
+            if ( r2 <= rCut2 && r2 > 0.0) {//3 bn cycles
+                // Important note:
+                // from this point on r actually refers to 1.0/r
+                r2 = 1.0/r2;
+                real_t r6 = s6 * (r2*r2*r2);//3 bn cycles
+                real_t eLocal = r6 * (r6 - 1.0) - eShift;
+                s->atoms->U[iOff] += 0.5*eLocal;//2 bn cycles
+                s->atoms->U[jOff] += 0.5*eLocal;
+                if (Box < s->boxes->nLocalBoxes)
+                    ePot_tp += eLocal;
+                else
+                    ePot_tp += 0.5*eLocal;
+
+                // different formulation to avoid sqrt computation
+                real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
+                for (int m=0; m<3; m++) {
+                    force_tp[iOff][m] -= dr[m]*fr;
+                    force_tp[jOff][m] += dr[m]*fr;
+                }
+            }
+        } // loop over atoms in jBox
+    } // loop over atoms in iBox
+}
+
+void calc_force(int iBox, int jBox, int nJBox, SimFlat *s, int rCut2, int s6, int eShift, int epsilon)
+{
+    int nIBox = s->boxes->nAtoms[iBox];
+    // loop over atoms in iBox
+    for (int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
+        // loop over atoms in jBox
+        for (int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
+            real3 dr;
+            real_t r2 = 0.0;
+            for (int m=0; m<3; m++) {
+                dr[m] = s->atoms->r[iOff][m] - s->atoms->r[jOff][m];//12 bn cycles
+                r2+=dr[m]*dr[m];//5 bn cycles
+            }
+
+            if ( r2 <= rCut2 && r2 > 0.0) {//3 bn cycles
+                // Important note:
+                // from this point on r actually refers to 1.0/r
+                r2 = 1.0/r2;
+                real_t r6 = s6 * (r2*r2*r2);//3 bn cycles
+                real_t eLocal = r6 * (r6 - 1.0) - eShift;
+                s->atoms->U[iOff] += 0.5*eLocal;//2 bn cycles
+                s->atoms->U[jOff] += 0.5*eLocal;
+                if (jBox < s->boxes->nLocalBoxes)
+                    ePot_tp += eLocal;
+                else
+                    ePot_tp += 0.5*eLocal;
+
+                // different formulation to avoid sqrt computation
+                real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
+                for (int m=0; m<3; m++) {
+                    force_tp[iOff][m] -= dr[m]*fr;
+                    force_tp[jOff][m] += dr[m]*fr;
+                }
+            }
+        } // loop over atoms in jBox
+    } // loop over atoms in iBox
+}
+
 int ljForce(SimFlat* s)
 {
     LjPotential* pot = (LjPotential *) s->pot;
@@ -150,118 +235,68 @@ int ljForce(SimFlat* s)
     real_t rCut = pot->cutoff;
     real_t rCut2 = rCut*rCut;
 
-    static double ePot_tp;
-#pragma omp threadprivate (ePot_tp)
-    static real3* force_tp;
-#pragma omp threadprivate (force_tp)
+    real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
+    real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
+    real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
+    int nNbrBoxes = 27;
+
     static real3* force = NULL;
 
     // zero forces and energy
     real_t ePot = 0.0;
     s->ePotential = 0.0;
     int fSize = s->boxes->nTotalBoxes*MAXATOMS;
-    if (force == NULL)
-    {
-        force = comdMalloc(fSize*omp_get_max_threads()*sizeof(real3));
+
 #pragma omp parallel
+    {
+    if (force == NULL) {
+#pragma omp single
+        force = comdMalloc(fSize*omp_get_max_threads()*sizeof(real3));
+
         force_tp = force + fSize*omp_get_thread_num();
     }
+    for(int ii=0; ii<fSize; ++ii)
+        zeroReal3(force_tp[ii]);
 
-#pragma omp parallel
-    {
-        for (int ii=0; ii<fSize; ++ii)
-            zeroReal3(force_tp[ii]);
-    }
-
-#pragma omp parallel for
+#pragma omp for
     for (int ii=0; ii<fSize; ++ii) {
         zeroReal3(s->atoms->f[ii]);
         s->atoms->U[ii] = 0.;
     }
-
-    real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
-
-    real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
-    real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
-
-    int nNbrBoxes = 27;
-
-#pragma omp parallel
-    {
-        ePot_tp = 0;
+    ePot_tp = 0;
 #pragma omp single
-        {
-            // loop over local boxes
-            for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++)
-            {
-                int nIBox = s->boxes->nAtoms[iBox];
-                // loop over neighbors of iBox
-                for (int jTmp=0; jTmp<nNbrBoxes; jTmp++)
-                {
-                    int jBox = s->boxes->nbrBoxes[iBox][jTmp];
-                    int nJBox = s->boxes->nAtoms[jBox];
-                    if (iBox > jBox) continue;
-
+    {
+    // loop over local boxes
+    for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
+        // loop over neighbors of iBox
+        for (int jTmp=0; jTmp < nNbrBoxes; jTmp++) {
+            int jBox  = s->boxes->nbrBoxes[iBox][jTmp];
+            int nJBox = s->boxes->nAtoms[jBox];
+            if (iBox > jBox) continue;
+            if(iBox == jBox) {
+#pragma omp task
+                calc_internal_force(iBox, nJBox, s, rCut2, s6, eShift, epsilon);
+            }
 #pragma omp task 
-                    {
-                        // loop over atoms in iBox
-                        for (int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++)
-                        {
-                            // loop over atoms in jBox
-                            for (int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++)
-                            {
-                                if (jBox == iBox && jOff <= iOff) 
-                                    continue; 
-                                real3 dr;
-                                real_t r2 = 0.0;
-                                for (int m=0; m<3; m++)
-                                {
-                                    dr[m] = s->atoms->r[iOff][m]-s->atoms->r[jOff][m];
-                                    r2+=dr[m]*dr[m];
-                                }
+            calc_force(iBox, jBox, nJBox, s, rCut2, s6, eShift, epsilon);
 
-                                if ( r2 <= rCut2 && r2 > 0.0)
-                                {
-                                    // Important note:
-                                    // from this point on r actually refers to 1.0/r
-                                    r2 = 1.0/r2;
-                                    real_t r6 = s6 * (r2*r2*r2);
-                                    real_t eLocal = r6 * (r6 - 1.0) - eShift;
-                                    s->atoms->U[iOff] += 0.5*eLocal;
-                                    s->atoms->U[jOff] += 0.5*eLocal;
-                                    if (jBox < s->boxes->nLocalBoxes)
-                                        ePot_tp += eLocal;
-                                    else
-                                        ePot_tp += 0.5*eLocal;
-
-                                    // different formulation to avoid sqrt computation
-                                    real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
-                                    for (int m=0; m<3; m++)
-                                    {
-                                        force_tp[iOff][m] -= dr[m]*fr;
-                                        force_tp[jOff][m] += dr[m]*fr;
-                                    }
-                                }
-                            } // loop over atoms in jBox
-                        } // loop over atoms in iBox
-                    }
-                } // loop over neighbor boxes
-            } // loop over local boxes in system
-        }
+        } // loop over neighbor boxes
+    } // loop over local boxes in system
+    } //end single
 #pragma omp taskwait
 #pragma omp critical
         ePot += ePot_tp;
-    }
+    } //end parallel
 
     // reduce thread private forces into s->atoms->f
 #pragma omp parallel for
-    for (int ii=0; ii<fSize; ++ii)
-        for (int jj=0; jj<omp_get_num_threads(); ++jj)
-        {
+    for (int ii=0; ii<fSize; ++ii) {
+        for (int jj=0; jj<omp_get_num_threads(); ++jj) {
             s->atoms->f[ii][0] += force[ii+fSize*jj][0];
             s->atoms->f[ii][1] += force[ii+fSize*jj][1];
             s->atoms->f[ii][2] += force[ii+fSize*jj][2];
         }
+    }
 
     ePot = ePot*4.0*epsilon;
     s->ePotential = ePot;
