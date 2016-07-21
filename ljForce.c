@@ -102,8 +102,6 @@ static double ePot_tp;
 //static real3* force_tp;
 //#pragma omp threadprivate (force_tp)
 //static real3* force = NULL;
-static int counter_inner;
-#pragma omp threadprivate (counter_inner)
 
 
 void ljDestroy(BasePotential** inppot)
@@ -180,7 +178,6 @@ void boxForce(int iBox, SimFlat *s)
                     r2+=dr[m]*dr[m];
                 }
                 if ( r2 <= rCut2 && r2 > 0.0) {
-                    counter_inner++;
                     r2 = 1.0/r2;
                     real_t r6 = s6 * (r2*r2*r2);
                     real_t eLocal = r6 * (r6 - 1.0) - eShift;
@@ -200,20 +197,13 @@ void boxForce(int iBox, SimFlat *s)
 int ljForce(SimFlat* s)
 {
     real_t ePot = 0.0;
-    int counter = 0;
     s->ePotential = 0.0;
-    int fSize = s->boxes->nTotalBoxes*MAXATOMS;
-    //LjPotential* pot = (LjPotential *) s->pot;
-    //real_t sigma = pot->sigma;
-    //real_t epsilon = pot->epsilon;
 
 #pragma omp parallel
     {
     ePot_tp = 0;
-    counter_inner = 0;
 #pragma omp single
     {
-    //for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
     for (int iBox=0; iBox < s->boxes->nTotalBoxes; iBox++) {
         //is there a need to out depend f as well?
         real_t *atoms = &(s->atoms->U[MAXATOMS*iBox]);
@@ -223,7 +213,6 @@ int ljForce(SimFlat* s)
             s->atoms->U[ii] = 0.;
         }
     }
-    
     for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
         real_t *atoms = &(s->atoms->U[MAXATOMS*iBox]);
 #pragma omp task depend(inout: atoms[0] )
@@ -235,10 +224,8 @@ int ljForce(SimFlat* s)
 #pragma omp critical
     {
         ePot += ePot_tp;
-        counter += counter_inner;
     }
     }
-
     real_t epsilon = ((LjPotential*)(s->pot))->epsilon;
     s->ePotential = ePot*4.0*epsilon;
 
