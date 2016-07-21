@@ -199,10 +199,11 @@ int ljForce(SimFlat* s)
     real_t ePot = 0.0;
     s->ePotential = 0.0;
 
-#pragma omp parallel
+//#pragma omp parallel
     {
+        //TODO: this needs to be executed in a parallel, non single
     ePot_tp = 0;
-#pragma omp single
+//#pragma omp single
     {
     for (int iBox=0; iBox < s->boxes->nTotalBoxes; iBox++) {
         //is there a need to out depend f as well?
@@ -218,7 +219,7 @@ int ljForce(SimFlat* s)
 #pragma omp task depend(inout: atoms[0] )
         boxForce(iBox, s);
     }
-#pragma omp taskwait
+//#pragma omp taskwait
     }
     
 #pragma omp critical

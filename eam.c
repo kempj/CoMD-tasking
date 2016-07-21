@@ -235,7 +235,7 @@ int eamForce(SimFlat* s)
 
    // zero forces / energy / rho /rhoprime
    int fsize = s->boxes->nTotalBoxes*MAXATOMS;
-   #pragma omp parallel for
+   //#pragma omp parallel for
    for (int ii=0; ii<fsize; ii++)
    {
       zeroReal3(s->atoms->f[ii]);
@@ -246,7 +246,7 @@ int eamForce(SimFlat* s)
 
    int nNbrBoxes = 27;
    // loop over local boxes
-   #pragma omp parallel for reduction(+:etot)
+   //#pragma omp parallel for reduction(+:etot)
    for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++)
    {
       int nIBox = s->boxes->nAtoms[iBox];
@@ -301,7 +301,7 @@ int eamForce(SimFlat* s)
 
    // Compute Embedding Energy
    // loop over all local boxes
-   #pragma omp parallel for reduction(+:etot)
+   //#pragma omp parallel for reduction(+:etot)
    for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++)
    {
       int nIBox =  s->boxes->nAtoms[iBox];
@@ -324,7 +324,7 @@ int eamForce(SimFlat* s)
 
    // third pass
    // loop over local boxes
-   #pragma omp parallel for
+   //#pragma omp parallel for
    for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++)
    {
       int nIBox = s->boxes->nAtoms[iBox];

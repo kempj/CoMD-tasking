@@ -32,100 +32,107 @@ static void advancePosition(SimFlat* s, int nBoxes, real_t dt);
 /// After nSteps the kinetic energy is computed for diagnostic output.
 double timestep(SimFlat* s, int nSteps, real_t dt)
 {
-   for (int ii=0; ii<nSteps; ++ii)
-   {
-      startTimer(velocityTimer);
-      advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); 
-      stopTimer(velocityTimer);
+    for (int ii=0; ii<nSteps; ++ii) {
+#pragma omp parallel 
+    {
+#pragma omp single
+    {
+        startTimer(velocityTimer);
+        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); 
+        stopTimer(velocityTimer);
 
-      startTimer(positionTimer);
-      advancePosition(s, s->boxes->nLocalBoxes, dt);
-      stopTimer(positionTimer);
+        startTimer(positionTimer);
+        advancePosition(s, s->boxes->nLocalBoxes, dt);
+        stopTimer(positionTimer);
 
-      startTimer(redistributeTimer);
-      redistributeAtoms(s);
-      stopTimer(redistributeTimer);
+        startTimer(redistributeTimer);
+        redistributeAtoms(s);
+        stopTimer(redistributeTimer);
 
-      startTimer(computeForceTimer);
-      computeForce(s);
-      stopTimer(computeForceTimer);
+        startTimer(computeForceTimer);
+        computeForce(s);
+        stopTimer(computeForceTimer);
 
-      startTimer(velocityTimer);
-      advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); 
-      stopTimer(velocityTimer);
-   }
+        startTimer(velocityTimer);
+        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); 
+        stopTimer(velocityTimer);
+    }
+    }}
+    kineticEnergy(s);
 
-   kineticEnergy(s);
-
-   return s->ePotential;
+    return s->ePotential;
 }
 
 void computeForce(SimFlat* s)
 {
-   s->pot->force(s);
+    s->pot->force(s);
 }
 
 
 void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
 {
-   #pragma omp parallel for
-   for (int iBox=0; iBox<nBoxes; iBox++)
-   {
-      for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
-      {
-         s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
-         s->atoms->p[iOff][1] += dt*s->atoms->f[iOff][1];
-         s->atoms->p[iOff][2] += dt*s->atoms->f[iOff][2];
-      }
-   }
+//#pragma omp parallel for
+    for (int iBox=0; iBox<nBoxes; iBox++) {
+        real_t *atomP = &(s->atoms->p[MAXATOMS*iBox][0]);
+        real_t *atomF = &(s->atoms->f[MAXATOMS*iBox][0]);
+#pragma omp task depend(inout: atomP[0]) depend(in: atomF[0])
+        for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+            s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
+            s->atoms->p[iOff][1] += dt*s->atoms->f[iOff][1];
+            s->atoms->p[iOff][2] += dt*s->atoms->f[iOff][2];
+        }
+    }
 }
 
 void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 {
-   #pragma omp parallel for
-   for (int iBox=0; iBox<nBoxes; iBox++)
-   {
-      for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
-      {
-         int iSpecies = s->atoms->iSpecies[iOff];
-         real_t invMass = 1.0/s->species[iSpecies].mass;
-         s->atoms->r[iOff][0] += dt*s->atoms->p[iOff][0]*invMass;
-         s->atoms->r[iOff][1] += dt*s->atoms->p[iOff][1]*invMass;
-         s->atoms->r[iOff][2] += dt*s->atoms->p[iOff][2]*invMass;
-      }
-   }
+//#pragma omp parallel for
+    for (int iBox=0; iBox<nBoxes; iBox++)
+    {
+        real_t *atomP = &(s->atoms->p[MAXATOMS*iBox][0]);
+        real_t *atomR = &(s->atoms->r[MAXATOMS*iBox][0]);
+#pragma omp task depend(inout: atomR[0]) depend(in: atomP)
+        for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
+        {
+            int iSpecies = s->atoms->iSpecies[iOff];
+            real_t invMass = 1.0/s->species[iSpecies].mass;
+            s->atoms->r[iOff][0] += dt*s->atoms->p[iOff][0]*invMass;
+            s->atoms->r[iOff][1] += dt*s->atoms->p[iOff][1]*invMass;
+            s->atoms->r[iOff][2] += dt*s->atoms->p[iOff][2]*invMass;
+        }
+    }
 }
 
 /// Calculates total kinetic and potential energy across all tasks.  The
 /// local potential energy is a by-product of the force routine.
 void kineticEnergy(SimFlat* s)
 {
-   real_t eLocal[2];
-   real_t kenergy = 0.0;
-   eLocal[0] = s->ePotential;
-   eLocal[1] = 0;
-   #pragma omp parallel for reduction(+:kenergy)
-   for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++)
-   {
-      for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
-      {
-         int iSpecies = s->atoms->iSpecies[iOff];
-         real_t invMass = 0.5/s->species[iSpecies].mass;
-         kenergy += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
-         s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
-         s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
-      }
-   }
+    real_t eLocal[2];
+    real_t kenergy = 0.0;
+    eLocal[0] = s->ePotential;
+    eLocal[1] = 0;
+#pragma omp parallel for reduction(+:kenergy)
+    for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++)
+    {
+        for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
+        {
+            int iSpecies = s->atoms->iSpecies[iOff];
+            real_t invMass = 0.5/s->species[iSpecies].mass;
+            kenergy += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
+                    s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
+                    s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
+        }
+    }
 
-   eLocal[1] = kenergy;
+    eLocal[1] = kenergy;
 
-   real_t eSum[2];
-   startTimer(commReduceTimer);
-   addRealParallel(eLocal, eSum, 2);
-   stopTimer(commReduceTimer);
+    real_t eSum[2];
+    startTimer(commReduceTimer);
+    addRealParallel(eLocal, eSum, 2);
+    stopTimer(commReduceTimer);
 
-   s->ePotential = eSum[0];
-   s->eKinetic = eSum[1];
+    s->ePotential = eSum[0];
+    s->eKinetic = eSum[1];
 }
 
 /// \details
@@ -143,13 +150,17 @@ void kineticEnergy(SimFlat* s)
 /// \see sortAtomsInCell
 void redistributeAtoms(SimFlat* sim)
 {
-   updateLinkCells(sim->boxes, sim->atoms);
+    updateLinkCells(sim->boxes, sim->atoms);
 
-   startTimer(atomHaloTimer);
-   haloExchange(sim->atomExchange, sim);
-   stopTimer(atomHaloTimer);
+    startTimer(atomHaloTimer);
+    haloExchange(sim->atomExchange, sim);
+    stopTimer(atomHaloTimer);
 
-   #pragma omp parallel for
-   for (int ii=0; ii<sim->boxes->nTotalBoxes; ++ii)
-      sortAtomsInCell(sim->atoms, sim->boxes, ii);
+//#pragma omp parallel for
+    for (int ii=0; ii<sim->boxes->nTotalBoxes; ++ii) {
+        real_t *atomP = &(sim->atoms->p[ii][0]);
+        real_t *atomR = &(sim->atoms->r[ii][0]);
+#pragma omp task depend(inout: atomP[0], atomR[0])
+        sortAtomsInCell(sim->atoms, sim->boxes, ii);
+    }
 }
