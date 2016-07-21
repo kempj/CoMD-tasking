@@ -119,13 +119,13 @@ void kineticEnergy(SimFlat* s)
 
    eLocal[1] = kenergy;
 
-   real_t eSum[2];
+   //real_t eSum[2];
    startTimer(commReduceTimer);
-   addRealParallel(eLocal, eSum, 2);
+   //addRealParallel(eLocal, eSum, 2);
    stopTimer(commReduceTimer);
 
-   s->ePotential = eSum[0];
-   s->eKinetic = eSum[1];
+   s->ePotential = eLocal[0];
+   s->eKinetic = eLocal[1];
 }
 
 /// \details
