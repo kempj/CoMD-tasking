@@ -102,8 +102,8 @@ static double ePot_tp;
 //static real3* force_tp;
 //#pragma omp threadprivate (force_tp)
 //static real3* force = NULL;
-static int inner_counter;
-#pragma omp threadprivate (inner_counter)
+static int counter_inner;
+#pragma omp threadprivate (counter_inner)
 
 
 void ljDestroy(BasePotential** inppot)
@@ -158,24 +158,22 @@ void boxForce(int iBox, SimFlat *s)
 {
     LjPotential* pot = (LjPotential *) s->pot;
     real_t rCut = pot->cutoff;
-    int sigma = pot->sigma;
-    int epsilon = pot->epsilon;
+    real_t sigma = pot->sigma;
+    real_t epsilon = pot->epsilon;
     real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
     real_t rCut2 = rCut*rCut;
     real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
     real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
 
+
     int nNbrBoxes = 27;
     int nIBox = s->boxes->nAtoms[iBox];
     for (int jTmp=0; jTmp < nNbrBoxes; jTmp++) {
         int jBox  = s->boxes->nbrBoxes[iBox][jTmp];
-        //if (iBox > jBox) continue;
+        assert(jBox >= 0);
         int nJBox = s->boxes->nAtoms[jBox];
         for (int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
             for (int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
-                inner_counter++;
-                //if (jBox == iBox && jOff <= iOff)
-                //    continue; 
                 real3 dr;
                 real_t r2 = 0.0;
                 for (int m=0; m<3; m++) {
@@ -183,21 +181,16 @@ void boxForce(int iBox, SimFlat *s)
                     r2+=dr[m]*dr[m];
                 }
                 if ( r2 <= rCut2 && r2 > 0.0) {
+                    counter_inner++;
                     r2 = 1.0/r2;
                     real_t r6 = s6 * (r2*r2*r2);
                     real_t eLocal = r6 * (r6 - 1.0) - eShift;
                     s->atoms->U[iOff] += 0.5*eLocal;
                     ePot_tp += 0.5*eLocal;
-                    //s->atoms->U[jOff] += 0.5*eLocal;
-                    //if (jBox < s->boxes->nLocalBoxes)
-                    //    ePot_tp += eLocal;
-                    //else
-                    //    ePot_tp += 0.5*eLocal;
 
                     real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
                     for (int m=0; m<3; m++) {
                         s->atoms->f[iOff][m] -= dr[m]*fr;
-                        //s->atoms->f[jOff][m] += dr[m]*fr;
                     }
                 }
             }
@@ -208,14 +201,17 @@ void boxForce(int iBox, SimFlat *s)
 int ljForce(SimFlat* s)
 {
     real_t ePot = 0.0;
+    int counter = 0;
     s->ePotential = 0.0;
     int fSize = s->boxes->nTotalBoxes*MAXATOMS;
+    //LjPotential* pot = (LjPotential *) s->pot;
+    //real_t sigma = pot->sigma;
+    //real_t epsilon = pot->epsilon;
 
 #pragma omp parallel
     {
     ePot_tp = 0;
-    inner_counter = 0;
-    int counter = 0;
+    counter_inner = 0;
 #pragma omp single
     {
     //for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
@@ -243,26 +239,12 @@ int ljForce(SimFlat* s)
 #pragma omp critical
     {
         ePot += ePot_tp;
-        printf("ePot_tp = %14.12f\n", ePot_tp);
-        counter += inner_counter;
-        printf("counter = %d\n", counter);
+        counter += counter_inner;
     }
     }
-
-    /*
-    for (int iBox=0; iBox < s->boxes->nTotalBoxes; iBox++) {
-        for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
-            if(s->atoms->f[ii][0] > 0 && s->atoms->f[ii][1] > 0 && s->atoms->f[ii][2] > 0) {
-                printf("%d: (%14.12f, %14.12f, %14.12f) ", ii,  s->atoms->f[ii][0], s->atoms->f[ii][1], s->atoms->f[ii][2]);
-            }
-        }
-    }
-    */
-
 
     real_t epsilon = ((LjPotential*)(s->pot))->epsilon;
     s->ePotential = ePot*4.0*epsilon;
-    printf("ePotential = %f\n", s->ePotential);
 
     return 0;
 }
