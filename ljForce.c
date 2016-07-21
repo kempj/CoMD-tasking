@@ -170,7 +170,6 @@ void boxForce(int iBox, SimFlat *s)
     int nIBox = s->boxes->nAtoms[iBox];
     for (int jTmp=0; jTmp < nNbrBoxes; jTmp++) {
         int jBox  = s->boxes->nbrBoxes[iBox][jTmp];
-        assert(jBox >= 0);
         int nJBox = s->boxes->nAtoms[jBox];
         for (int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
             for (int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
@@ -217,20 +216,17 @@ int ljForce(SimFlat* s)
     //for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
     for (int iBox=0; iBox < s->boxes->nTotalBoxes; iBox++) {
         //is there a need to out depend f as well?
-//        real_t *atoms = &(s->atoms->U[MAXATOMS*iBox]);
-//#pragma omp task depend(inout: atoms[0] )
-#pragma omp task
+        real_t *atoms = &(s->atoms->U[MAXATOMS*iBox]);
+#pragma omp task depend(inout: atoms[0] )
         for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
             zeroReal3(s->atoms->f[ii]);
             s->atoms->U[ii] = 0.;
         }
     }
-#pragma omp taskwait
     
     for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
-//        real_t *atoms = &(s->atoms->U[MAXATOMS*iBox]);
-//#pragma omp task depend(inout: atoms[0] )
-#pragma omp task
+        real_t *atoms = &(s->atoms->U[MAXATOMS*iBox]);
+#pragma omp task depend(inout: atoms[0] )
         boxForce(iBox, s);
     }
 #pragma omp taskwait
