@@ -118,7 +118,6 @@ void kineticEnergy(SimFlat* s)
    }
 
    eLocal[1] = kenergy;
-   printf("in Kinetic Energy, PE = %f, KE = %f\n", eLocal[0], eLocal[1]);
 
    real_t eSum[2];
    startTimer(commReduceTimer);
@@ -127,7 +126,6 @@ void kineticEnergy(SimFlat* s)
 
    s->ePotential = eSum[0];
    s->eKinetic = eSum[1];
-   printf("in Kinetic Energy, after communication, PE = %f, KE = %f\n", eSum[0], eSum[1]);
 }
 
 /// \details
