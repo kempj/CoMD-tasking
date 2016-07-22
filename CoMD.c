@@ -207,7 +207,7 @@ SimFlat* initSimulation(Command cmd)
 #pragma omp single
         {
             reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
-            setTemperature(sim, cmd.temperature);//parallel for, and reduce
+            setTemperature(sim, cmd.temperature);//atomP -> ?? -> atomP
             randomDisplacements(sim, cmd.initialDelta);//parallel for
 
             sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);

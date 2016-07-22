@@ -14,6 +14,7 @@ static void advanceVelocity(SimFlat* s, int nBoxes, real_t dt);
 static void advancePosition(SimFlat* s, int nBoxes, real_t dt);
 
 extern double *reductionArray;
+extern double globalEnergy;
 
 /// Advance the simulation time to t+dt using a leap frog method
 /// (equivalent to velocity verlet).
@@ -72,11 +73,10 @@ void computeForce(SimFlat* s)
 
 void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
 {
-//#pragma omp parallel for
+    real3 *atomP = s->atoms->p;
+    real3 *atomF = s->atoms->f;
     for (int iBox=0; iBox<nBoxes; iBox++) {
-        real_t *atomP = &(s->atoms->p[MAXATOMS*iBox][0]);
-        real_t *atomF = &(s->atoms->f[MAXATOMS*iBox][0]);
-#pragma omp task depend(inout: atomP[0]) depend(in: atomF[0])
+#pragma omp task depend(inout: atomP[iBox]) depend(in: atomF[iBox])
         for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
             s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
             s->atoms->p[iOff][1] += dt*s->atoms->f[iOff][1];
@@ -87,12 +87,11 @@ void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
 
 void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 {
-//#pragma omp parallel for
+    real3 *atomP = s->atoms->p;
+    real3 *atomR = s->atoms->r;
     for (int iBox=0; iBox<nBoxes; iBox++)
     {
-        real_t *atomP = &(s->atoms->p[MAXATOMS*iBox][0]);
-        real_t *atomR = &(s->atoms->r[MAXATOMS*iBox][0]);
-#pragma omp task depend(inout: atomR[0]) depend(in: atomP)
+#pragma omp task depend(inout: atomR[iBox]) depend(in: atomP[iBox])
         for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
         {
             int iSpecies = s->atoms->iSpecies[iOff];
@@ -108,34 +107,35 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 /// local potential energy is a by-product of the force routine.
 void kineticEnergy(SimFlat* s)
 {
-    real_t eLocal[2];
-    real_t kenergy = 0.0;
-    eLocal[0] = s->ePotential;
-    eLocal[1] = 0;
-//#pragma omp parallel for reduction(+:kenergy)
-//can't do a reduction easily yet. This should be correct, even if bad for performance.
-#pragma omp taskwait
+    //real_t eLocal[2];
+    //real_t kenergy = 0.0;
+    //eLocal[0] = s->ePotential;
+    //eLocal[1] = 0;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
-    //real_t *ePotential = &(s->ePotential);
-//#pragma omp task depend(out: reductionArray[iBox]) depend(in: ePotential)
+        real3  *atomP = s->atoms->p;
+#pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox])
         for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
             int iSpecies = s->atoms->iSpecies[iOff];
             real_t invMass = 0.5/s->species[iSpecies].mass;
-            kenergy += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
+            reductionArray[iOff] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
                          s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
                          s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
         }
     }
 
-    eLocal[1] = kenergy;
+    ompReduce(reductionArray, s->boxes->nLocalBoxes);
 
-    real_t eSum[2];
-    startTimer(commReduceTimer);
-    addRealParallel(eLocal, eSum, 2);
-    stopTimer(commReduceTimer);
+    //eLocal[1] = kenergy;
 
-    s->ePotential = eSum[0];
-    s->eKinetic = eSum[1];
+    //real_t eSum[2];
+    //startTimer(commReduceTimer);
+    //addRealParallel(eLocal, eSum, 2);
+    //stopTimer(commReduceTimer);
+    //s->ePotential = eSum[0];
+    
+    real_t *ePotential = &(s->ePotential);
+#pragma omp task depend( in: reductionArray[0] ) depend( out: ePotential[0] )
+    s->eKinetic = reductionArray[0];
 }
 
 /// \details
@@ -160,11 +160,10 @@ void redistributeAtoms(SimFlat* sim)
     //haloExchange(sim->atomExchange, sim);
     stopTimer(atomHaloTimer);
 
-//#pragma omp parallel for
+    real3  *atomP = sim->atoms->p;
+    real3  *atomR = sim->atoms->r;
     for (int ii=0; ii<sim->boxes->nTotalBoxes; ++ii) {
-        real_t *atomP = &(sim->atoms->p[ii][0]);
-        real_t *atomR = &(sim->atoms->r[ii][0]);
-#pragma omp task depend(inout: atomP[0], atomR[0])
+#pragma omp task depend(inout: atomP[ii], atomR[ii])
         sortAtomsInCell(sim->atoms, sim->boxes, ii);
     }
 }
