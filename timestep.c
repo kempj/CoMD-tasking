@@ -111,16 +111,16 @@ void kineticEnergy(SimFlat* s)
     real_t kenergy = 0.0;
     eLocal[0] = s->ePotential;
     eLocal[1] = 0;
-#pragma omp parallel for reduction(+:kenergy)
-    for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++)
-    {
-        for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
-        {
+//#pragma omp parallel for reduction(+:kenergy)
+//can't do a reduction easily yet. This should be correct, even if bad for performance.
+#pragma omp taskwait
+    for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
+        for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
             int iSpecies = s->atoms->iSpecies[iOff];
             real_t invMass = 0.5/s->species[iSpecies].mass;
             kenergy += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
-                    s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
-                    s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
+                         s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
+                         s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
         }
     }
 
@@ -153,7 +153,8 @@ void redistributeAtoms(SimFlat* sim)
     updateLinkCells(sim->boxes, sim->atoms);
 
     startTimer(atomHaloTimer);
-    haloExchange(sim->atomExchange, sim);
+    //I don't think this does anything if there is no MPI
+    //haloExchange(sim->atomExchange, sim);
     stopTimer(atomHaloTimer);
 
 //#pragma omp parallel for

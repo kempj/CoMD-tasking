@@ -72,7 +72,7 @@ static void initSubsystems(void);
 static void finalizeSubsystems(void);
 
 static BasePotential* initPotential(
-   int doeam, const char* potDir, const char* potName, const char* potType);
+        int doeam, const char* potDir, const char* potName, const char* potType);
 static SpeciesData* initSpecies(BasePotential* pot);
 static Validate* initValidate(SimFlat* s);
 static void validateResult(const Validate* val, SimFlat *sim);
@@ -85,68 +85,68 @@ static void sanityChecks(Command cmd, double cutoff, double latticeConst, char l
 
 int main(int argc, char** argv)
 {
-   // Prolog
-   initParallel(&argc, &argv);
-   profileStart(totalTimer);
-   initSubsystems();
-   timestampBarrier("Starting Initialization\n");
+    // Prolog
+    initParallel(&argc, &argv);
+    profileStart(totalTimer);
+    initSubsystems();
+    timestampBarrier("Starting Initialization\n");
 
-   yamlAppInfo(yamlFile);
-   yamlAppInfo(screenOut);
+    yamlAppInfo(yamlFile);
+    yamlAppInfo(screenOut);
 
-   Command cmd = parseCommandLine(argc, argv);
-   printCmdYaml(yamlFile, &cmd);
-   printCmdYaml(screenOut, &cmd);
+    Command cmd = parseCommandLine(argc, argv);
+    printCmdYaml(yamlFile, &cmd);
+    printCmdYaml(screenOut, &cmd);
 
-   SimFlat* sim = initSimulation(cmd);
-   printSimulationDataYaml(yamlFile, sim);
-   printSimulationDataYaml(screenOut, sim);
+    SimFlat* sim = initSimulation(cmd);
+    printSimulationDataYaml(yamlFile, sim);
+    printSimulationDataYaml(screenOut, sim);
 
-   Validate* validate = initValidate(sim); // atom counts, energy
-   timestampBarrier("Initialization Finished\n");
+    Validate* validate = initValidate(sim); // atom counts, energy
+    timestampBarrier("Initialization Finished\n");
 
-   timestampBarrier("Starting simulation\n");
+    timestampBarrier("Starting simulation\n");
 
-   // This is the CoMD main loop
-   const int nSteps = sim->nSteps;
-   const int printRate = sim->printRate;
-   int iStep = 0;
-   profileStart(loopTimer);
-   for (; iStep<nSteps; )
-   {
-      startTimer(commReduceTimer);
-      sumAtoms(sim);
-      stopTimer(commReduceTimer);
+    // This is the CoMD main loop
+    const int nSteps = sim->nSteps;
+    const int printRate = sim->printRate;
+    int iStep = 0;
+    profileStart(loopTimer);
+    for (; iStep<nSteps; )
+    {
+        startTimer(commReduceTimer);
+        sumAtoms(sim);
+        stopTimer(commReduceTimer);
 
-      printThings(sim, iStep, getElapsedTime(timestepTimer));
+        printThings(sim, iStep, getElapsedTime(timestepTimer));
 
-      startTimer(timestepTimer);
-      timestep(sim, printRate, sim->dt);
-      stopTimer(timestepTimer);
-      iStep += printRate;
+        startTimer(timestepTimer);
+        timestep(sim, printRate, sim->dt);
+        stopTimer(timestepTimer);
+        iStep += printRate;
 
-   }
-   profileStop(loopTimer);
+    }
+    profileStop(loopTimer);
 
-   sumAtoms(sim);
-   printThings(sim, iStep, getElapsedTime(timestepTimer));
-   timestampBarrier("Ending simulation\n");
+    sumAtoms(sim);
+    printThings(sim, iStep, getElapsedTime(timestepTimer));
+    timestampBarrier("Ending simulation\n");
 
-   // Epilog
-   validateResult(validate, sim);
-   profileStop(totalTimer);
+    // Epilog
+    validateResult(validate, sim);
+    profileStop(totalTimer);
 
-   printPerformanceResults(sim->atoms->nGlobal);
-   printPerformanceResultsYaml(yamlFile);
+    printPerformanceResults(sim->atoms->nGlobal);
+    printPerformanceResultsYaml(yamlFile);
 
-   destroySimulation(&sim);
-   comdFree(validate);
-   finalizeSubsystems();
+    destroySimulation(&sim);
+    comdFree(validate);
+    finalizeSubsystems();
 
-   timestampBarrier("CoMD Ending\n");
-   destroyParallel();
+    timestampBarrier("CoMD Ending\n");
+    destroyParallel();
 
-   return 0;
+    return 0;
 }
 
 /// Initialized the main CoMD data stucture, SimFlat, based on command
@@ -162,181 +162,187 @@ int main(int argc, char** argv)
 /// must be initialized before the atoms.
 SimFlat* initSimulation(Command cmd)
 {
-   SimFlat* sim = comdMalloc(sizeof(SimFlat));
-   sim->nSteps = cmd.nSteps;
-   sim->printRate = cmd.printRate;
-   sim->dt = cmd.dt;
-   sim->domain = NULL;
-   sim->boxes = NULL;
-   sim->atoms = NULL;
-   sim->ePotential = 0.0;
-   sim->eKinetic = 0.0;
-   sim->atomExchange = NULL;
+    SimFlat* sim = comdMalloc(sizeof(SimFlat));
+    sim->nSteps = cmd.nSteps;
+    sim->printRate = cmd.printRate;
+    sim->dt = cmd.dt;
+    sim->domain = NULL;
+    sim->boxes = NULL;
+    sim->atoms = NULL;
+    sim->ePotential = 0.0;
+    sim->eKinetic = 0.0;
+    sim->atomExchange = NULL;
 
-   sim->pot = initPotential(cmd.doeam, cmd.potDir, cmd.potName, cmd.potType);
-   real_t latticeConstant = cmd.lat;
-   if (cmd.lat < 0.0)
-      latticeConstant = sim->pot->lat;
+    sim->pot = initPotential(cmd.doeam, cmd.potDir, cmd.potName, cmd.potType);
+    real_t latticeConstant = cmd.lat;
+    if (cmd.lat < 0.0)
+        latticeConstant = sim->pot->lat;
 
-   // ensure input parameters make sense.
-   sanityChecks(cmd, sim->pot->cutoff, latticeConstant, sim->pot->latticeType);
+    // ensure input parameters make sense.
+    sanityChecks(cmd, sim->pot->cutoff, latticeConstant, sim->pot->latticeType);
 
-   sim->species = initSpecies(sim->pot);
+    sim->species = initSpecies(sim->pot);
 
-   real3 globalExtent;
-   globalExtent[0] = cmd.nx * latticeConstant;
-   globalExtent[1] = cmd.ny * latticeConstant;
-   globalExtent[2] = cmd.nz * latticeConstant;
+    real3 globalExtent;
+    globalExtent[0] = cmd.nx * latticeConstant;
+    globalExtent[1] = cmd.ny * latticeConstant;
+    globalExtent[2] = cmd.nz * latticeConstant;
 
-   sim->domain = initDecomposition(
-      cmd.xproc, cmd.yproc, cmd.zproc, globalExtent);
+    sim->domain = initDecomposition(
+            cmd.xproc, cmd.yproc, cmd.zproc, globalExtent);
 
-   sim->boxes = initLinkCells(sim->domain, sim->pot->cutoff);
-   sim->atoms = initAtoms(sim->boxes);
+    sim->boxes = initLinkCells(sim->domain, sim->pot->cutoff);
+    sim->atoms = initAtoms(sim->boxes);
 
-   // create lattice with desired temperature and displacement.
-   createFccLattice(cmd.nx, cmd.ny, cmd.nz, latticeConstant, sim);
-   setTemperature(sim, cmd.temperature);
-   randomDisplacements(sim, cmd.initialDelta);
+    // create lattice with desired temperature and displacement.
+    createFccLattice(cmd.nx, cmd.ny, cmd.nz, latticeConstant, sim);
 
-   sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
+#pragma omp parallel 
+    {
+#pragma omp single
+    {
+    setTemperature(sim, cmd.temperature);//parallel for, and reduce
+    randomDisplacements(sim, cmd.initialDelta);//parallel for
 
-   // Forces must be computed before we call the time stepper.
-   startTimer(redistributeTimer);
-   redistributeAtoms(sim);
-   stopTimer(redistributeTimer);
+    sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
 
-   startTimer(computeForceTimer);
-   computeForce(sim);
-   stopTimer(computeForceTimer);
+    // Forces must be computed before we call the time stepper.
+    startTimer(redistributeTimer);
+    redistributeAtoms(sim);
+    stopTimer(redistributeTimer);
 
-   kineticEnergy(sim);
+    startTimer(computeForceTimer);
+    computeForce(sim);
+    stopTimer(computeForceTimer);
+    }}
 
-   return sim;
+    kineticEnergy(sim);
+
+    return sim;
 }
 
 /// frees all data associated with *ps and frees *ps
 void destroySimulation(SimFlat** ps)
 {
-   if ( ! ps ) return;
+    if ( ! ps ) return;
 
-   SimFlat* s = *ps;
-   if ( ! s ) return;
+    SimFlat* s = *ps;
+    if ( ! s ) return;
 
-   BasePotential* pot = s->pot;
-   if ( pot) pot->destroy(&pot);
-   destroyLinkCells(&(s->boxes));
-   destroyAtoms(s->atoms);
-   destroyHaloExchange(&(s->atomExchange));
-   comdFree(s->species);
-   comdFree(s->domain);
-   comdFree(s);
-   *ps = NULL;
+    BasePotential* pot = s->pot;
+    if ( pot) pot->destroy(&pot);
+    destroyLinkCells(&(s->boxes));
+    destroyAtoms(s->atoms);
+    destroyHaloExchange(&(s->atomExchange));
+    comdFree(s->species);
+    comdFree(s->domain);
+    comdFree(s);
+    *ps = NULL;
 
-   return;
+    return;
 }
 
 void initSubsystems(void)
 {
 #if REDIRECT_OUTPUT
-   freopen("testOut.txt","w",screenOut);
+    freopen("testOut.txt","w",screenOut);
 #endif
 
-   yamlBegin();
+    yamlBegin();
 }
 
 void finalizeSubsystems(void)
 {
 #if REDIRECT_OUTPUT
-   fclose(screenOut);
+    fclose(screenOut);
 #endif
-   yamlEnd();
+    yamlEnd();
 }
 
 /// decide whether to get LJ or EAM potentials
 BasePotential* initPotential(
-   int doeam, const char* potDir, const char* potName, const char* potType)
+        int doeam, const char* potDir, const char* potName, const char* potType)
 {
-   BasePotential* pot = NULL;
+    BasePotential* pot = NULL;
 
-   if (doeam) 
-      pot = initEamPot(potDir, potName, potType);
-   else 
-      pot = initLjPot();
-   assert(pot);
-   return pot;
+    if (doeam) 
+        pot = initEamPot(potDir, potName, potType);
+    else 
+        pot = initLjPot();
+    assert(pot);
+    return pot;
 }
 
 SpeciesData* initSpecies(BasePotential* pot)
 {
-   SpeciesData* species = comdMalloc(sizeof(SpeciesData));
+    SpeciesData* species = comdMalloc(sizeof(SpeciesData));
 
-   strcpy(species->name, pot->name);
-   species->atomicNo = pot->atomicNo;
-   species->mass = pot->mass;
+    strcpy(species->name, pot->name);
+    species->atomicNo = pot->atomicNo;
+    species->mass = pot->mass;
 
-   return species;
+    return species;
 }
 
 Validate* initValidate(SimFlat* sim)
 {
-   sumAtoms(sim);
-   Validate* val = comdMalloc(sizeof(Validate));
-   val->eTot0 = (sim->ePotential + sim->eKinetic) / sim->atoms->nGlobal;
-   val->nAtoms0 = sim->atoms->nGlobal;
+    sumAtoms(sim);
+    Validate* val = comdMalloc(sizeof(Validate));
+    val->eTot0 = (sim->ePotential + sim->eKinetic) / sim->atoms->nGlobal;
+    val->nAtoms0 = sim->atoms->nGlobal;
 
-   if (printRank())
-   {
-      fprintf(screenOut, "\n");
-      printSeparator(screenOut);
-      fprintf(screenOut, "Initial energy : %14.12f, atom count : %d \n", 
-            val->eTot0, val->nAtoms0);
-      fprintf(screenOut, "\n");
-   }
-   return val;
+    if (printRank())
+    {
+        fprintf(screenOut, "\n");
+        printSeparator(screenOut);
+        fprintf(screenOut, "Initial energy : %14.12f, atom count : %d \n", 
+                val->eTot0, val->nAtoms0);
+        fprintf(screenOut, "\n");
+    }
+    return val;
 }
 
 void validateResult(const Validate* val, SimFlat* sim)
 {
-   if (printRank())
-   {
-      real_t eFinal = (sim->ePotential + sim->eKinetic) / sim->atoms->nGlobal;
+    if (printRank())
+    {
+        real_t eFinal = (sim->ePotential + sim->eKinetic) / sim->atoms->nGlobal;
 
-      int nAtomsDelta = (sim->atoms->nGlobal - val->nAtoms0);
+        int nAtomsDelta = (sim->atoms->nGlobal - val->nAtoms0);
 
-      fprintf(screenOut, "\n");
-      fprintf(screenOut, "\n");
-      fprintf(screenOut, "Simulation Validation:\n");
+        fprintf(screenOut, "\n");
+        fprintf(screenOut, "\n");
+        fprintf(screenOut, "Simulation Validation:\n");
 
-      fprintf(screenOut, "  Initial energy  : %14.12f\n", val->eTot0);
-      fprintf(screenOut, "  Final energy    : %14.12f\n", eFinal);
-      fprintf(screenOut, "  eFinal/eInitial : %f\n", eFinal/val->eTot0);
-      if ( nAtomsDelta == 0)
-      {
-         fprintf(screenOut, "  Final atom count : %d, no atoms lost\n",
-               sim->atoms->nGlobal);
-      }
-      else
-      {
-         fprintf(screenOut, "#############################\n");
-         fprintf(screenOut, "# WARNING: %6d atoms lost #\n", nAtomsDelta);
-         fprintf(screenOut, "#############################\n");
-      }
-   }
+        fprintf(screenOut, "  Initial energy  : %14.12f\n", val->eTot0);
+        fprintf(screenOut, "  Final energy    : %14.12f\n", eFinal);
+        fprintf(screenOut, "  eFinal/eInitial : %f\n", eFinal/val->eTot0);
+        if ( nAtomsDelta == 0)
+        {
+            fprintf(screenOut, "  Final atom count : %d, no atoms lost\n",
+                    sim->atoms->nGlobal);
+        }
+        else
+        {
+            fprintf(screenOut, "#############################\n");
+            fprintf(screenOut, "# WARNING: %6d atoms lost #\n", nAtomsDelta);
+            fprintf(screenOut, "#############################\n");
+        }
+    }
 }
 
 void sumAtoms(SimFlat* s)
 {
-   // sum atoms across all processers
-   s->atoms->nLocal = 0;
-   for (int i = 0; i < s->boxes->nLocalBoxes; i++)
-   {
-      s->atoms->nLocal += s->boxes->nAtoms[i];
-   }
+    // sum atoms across all processers
+    s->atoms->nLocal = 0;
+    for (int i = 0; i < s->boxes->nLocalBoxes; i++)
+    {
+        s->atoms->nLocal += s->boxes->nAtoms[i];
+    }
 
-   startTimer(commReduceTimer);
-   addIntParallel(&s->atoms->nLocal, &s->atoms->nGlobal, 1);
-   stopTimer(commReduceTimer);
+    startTimer(commReduceTimer);
+    addIntParallel(&s->atoms->nLocal, &s->atoms->nGlobal, 1);
+    stopTimer(commReduceTimer);
 }
 
 /// Prints current time, energy, performance etc to monitor the state of
@@ -345,127 +351,127 @@ void sumAtoms(SimFlat* s)
 /// assuming reasonable load balance
 void printThings(SimFlat* s, int iStep, double elapsedTime)
 {
-   // keep track previous value of iStep so we can calculate number of steps.
-   static int iStepPrev = -1; 
-   static int firstCall = 1;
+    // keep track previous value of iStep so we can calculate number of steps.
+    static int iStepPrev = -1; 
+    static int firstCall = 1;
 
-   int nEval = iStep - iStepPrev; // gives nEval = 1 for zeroth step.
-   iStepPrev = iStep;
-   
-   if (! printRank() )
-      return;
+    int nEval = iStep - iStepPrev; // gives nEval = 1 for zeroth step.
+    iStepPrev = iStep;
 
-   if (firstCall)
-   {
-      firstCall = 0;
-      fprintf(screenOut, 
-       "#                                                                                         Performance\n" 
-       "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature   (us/atom)     # Atoms\n");
-      fflush(screenOut);
-   }
+    if (! printRank() )
+        return;
 
-   real_t time = iStep*s->dt;
-   real_t eTotal = (s->ePotential+s->eKinetic) / s->atoms->nGlobal;
-   real_t eK = s->eKinetic / s->atoms->nGlobal;
-   real_t eU = s->ePotential / s->atoms->nGlobal;
-   real_t Temp = (s->eKinetic / s->atoms->nGlobal) / (kB_eV * 1.5);
+    if (firstCall)
+    {
+        firstCall = 0;
+        fprintf(screenOut, 
+                "#                                                                                         Performance\n" 
+                "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature   (us/atom)     # Atoms\n");
+        fflush(screenOut);
+    }
 
-   double timePerAtom = 1.0e6*elapsedTime/(double)(nEval*s->atoms->nLocal);
+    real_t time = iStep*s->dt;
+    real_t eTotal = (s->ePotential+s->eKinetic) / s->atoms->nGlobal;
+    real_t eK = s->eKinetic / s->atoms->nGlobal;
+    real_t eU = s->ePotential / s->atoms->nGlobal;
+    real_t Temp = (s->eKinetic / s->atoms->nGlobal) / (kB_eV * 1.5);
 
-   fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %10.4f %12d\n",
-           iStep, time, eTotal, eU, eK, Temp, timePerAtom, s->atoms->nGlobal);
+    double timePerAtom = 1.0e6*elapsedTime/(double)(nEval*s->atoms->nLocal);
+
+    fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %10.4f %12d\n",
+            iStep, time, eTotal, eU, eK, Temp, timePerAtom, s->atoms->nGlobal);
 }
 
 /// Print information about the simulation in a format that is (mostly)
 /// YAML compliant.
 void printSimulationDataYaml(FILE* file, SimFlat* s)
 {
-   // All ranks get maxOccupancy
-   int maxOcc = maxOccupancy(s->boxes);
+    // All ranks get maxOccupancy
+    int maxOcc = maxOccupancy(s->boxes);
 
-   // Only rank 0 prints
-   if (! printRank())
-      return;
-   
-   fprintf(file,"Simulation data: \n");
-   fprintf(file,"  Total atoms        : %d\n", 
-           s->atoms->nGlobal);
-   fprintf(file,"  Min global bounds  : [ %14.10f, %14.10f, %14.10f ]\n",
-           s->domain->globalMin[0], s->domain->globalMin[1], s->domain->globalMin[2]);
-   fprintf(file,"  Max global bounds  : [ %14.10f, %14.10f, %14.10f ]\n",
-           s->domain->globalMax[0], s->domain->globalMax[1], s->domain->globalMax[2]);
-   printSeparator(file);
-   fprintf(file,"Decomposition data: \n");
-   fprintf(file,"  Processors         : %6d,%6d,%6d\n", 
-           s->domain->procGrid[0], s->domain->procGrid[1], s->domain->procGrid[2]);
-   fprintf(file,"  Local boxes        : %6d,%6d,%6d = %8d\n", 
-           s->boxes->gridSize[0], s->boxes->gridSize[1], s->boxes->gridSize[2], 
-           s->boxes->gridSize[0]*s->boxes->gridSize[1]*s->boxes->gridSize[2]);
-   fprintf(file,"  Box size           : [ %14.10f, %14.10f, %14.10f ]\n", 
-           s->boxes->boxSize[0], s->boxes->boxSize[1], s->boxes->boxSize[2]);
-   fprintf(file,"  Box factor         : [ %14.10f, %14.10f, %14.10f ] \n", 
-           s->boxes->boxSize[0]/s->pot->cutoff,
-           s->boxes->boxSize[1]/s->pot->cutoff,
-           s->boxes->boxSize[2]/s->pot->cutoff);
-   fprintf(file, "  Max Link Cell Occupancy: %d of %d\n",
-           maxOcc, MAXATOMS);
-   printSeparator(file);
-   fprintf(file,"Potential data: \n");
-   s->pot->print(file, s->pot);
-   
-   fflush(file);      
+    // Only rank 0 prints
+    if (! printRank())
+        return;
+
+    fprintf(file,"Simulation data: \n");
+    fprintf(file,"  Total atoms        : %d\n", 
+            s->atoms->nGlobal);
+    fprintf(file,"  Min global bounds  : [ %14.10f, %14.10f, %14.10f ]\n",
+            s->domain->globalMin[0], s->domain->globalMin[1], s->domain->globalMin[2]);
+    fprintf(file,"  Max global bounds  : [ %14.10f, %14.10f, %14.10f ]\n",
+            s->domain->globalMax[0], s->domain->globalMax[1], s->domain->globalMax[2]);
+    printSeparator(file);
+    fprintf(file,"Decomposition data: \n");
+    fprintf(file,"  Processors         : %6d,%6d,%6d\n", 
+            s->domain->procGrid[0], s->domain->procGrid[1], s->domain->procGrid[2]);
+    fprintf(file,"  Local boxes        : %6d,%6d,%6d = %8d\n", 
+            s->boxes->gridSize[0], s->boxes->gridSize[1], s->boxes->gridSize[2], 
+            s->boxes->gridSize[0]*s->boxes->gridSize[1]*s->boxes->gridSize[2]);
+    fprintf(file,"  Box size           : [ %14.10f, %14.10f, %14.10f ]\n", 
+            s->boxes->boxSize[0], s->boxes->boxSize[1], s->boxes->boxSize[2]);
+    fprintf(file,"  Box factor         : [ %14.10f, %14.10f, %14.10f ] \n", 
+            s->boxes->boxSize[0]/s->pot->cutoff,
+            s->boxes->boxSize[1]/s->pot->cutoff,
+            s->boxes->boxSize[2]/s->pot->cutoff);
+    fprintf(file, "  Max Link Cell Occupancy: %d of %d\n",
+            maxOcc, MAXATOMS);
+    printSeparator(file);
+    fprintf(file,"Potential data: \n");
+    s->pot->print(file, s->pot);
+
+    fflush(file);      
 }
 
 /// Check that the user input meets certain criteria.
 void sanityChecks(Command cmd, double cutoff, double latticeConst, char latticeType[8])
 {
-   int failCode = 0;
+    int failCode = 0;
 
-   // Check that domain grid matches number of ranks. (fail code 1)
-   int nProcs = cmd.xproc * cmd.yproc * cmd.zproc;
-   if (nProcs != getNRanks())
-   {
-      failCode |= 1;
-      if (printRank() )
-         fprintf(screenOut,
-                 "\nNumber of MPI ranks must match xproc * yproc * zproc\n");
-   }
+    // Check that domain grid matches number of ranks. (fail code 1)
+    int nProcs = cmd.xproc * cmd.yproc * cmd.zproc;
+    if (nProcs != getNRanks())
+    {
+        failCode |= 1;
+        if (printRank() )
+            fprintf(screenOut,
+                    "\nNumber of MPI ranks must match xproc * yproc * zproc\n");
+    }
 
-   // Check whether simuation is too small (fail code 2)
-   double minx = 2*cutoff*cmd.xproc;
-   double miny = 2*cutoff*cmd.yproc;
-   double minz = 2*cutoff*cmd.zproc;
-   double sizex = cmd.nx*latticeConst;
-   double sizey = cmd.ny*latticeConst;
-   double sizez = cmd.nz*latticeConst;
+    // Check whether simuation is too small (fail code 2)
+    double minx = 2*cutoff*cmd.xproc;
+    double miny = 2*cutoff*cmd.yproc;
+    double minz = 2*cutoff*cmd.zproc;
+    double sizex = cmd.nx*latticeConst;
+    double sizey = cmd.ny*latticeConst;
+    double sizez = cmd.nz*latticeConst;
 
-   if ( sizex < minx || sizey < miny || sizez < minz)
-   {
-      failCode |= 2;
-      if (printRank())
-         fprintf(screenOut,"\nSimulation too small.\n"
-                 "  Increase the number of unit cells to make the simulation\n"
-                 "  at least (%3.2f, %3.2f. %3.2f) Ansgstroms in size\n",
-                 minx, miny, minz);
-   }
+    if ( sizex < minx || sizey < miny || sizez < minz)
+    {
+        failCode |= 2;
+        if (printRank())
+            fprintf(screenOut,"\nSimulation too small.\n"
+                    "  Increase the number of unit cells to make the simulation\n"
+                    "  at least (%3.2f, %3.2f. %3.2f) Ansgstroms in size\n",
+                    minx, miny, minz);
+    }
 
-   // Check for supported lattice structure (fail code 4)
-   if (strcasecmp(latticeType, "FCC") != 0)
-   {
-      failCode |= 4;
-      if ( printRank() )
-         fprintf(screenOut,
-                 "\nOnly FCC Lattice type supported, not %s. Fatal Error.\n",
-                 latticeType);
-   }
-   int checkCode = failCode;
-   bcastParallel(&checkCode, sizeof(int), 0);
-   // This assertion can only fail if different tasks failed different
-   // sanity checks.  That should not be possible.
-   assert(checkCode == failCode);
-      
-   if (failCode != 0)
-      exit(failCode);
+    // Check for supported lattice structure (fail code 4)
+    if (strcasecmp(latticeType, "FCC") != 0)
+    {
+        failCode |= 4;
+        if ( printRank() )
+            fprintf(screenOut,
+                    "\nOnly FCC Lattice type supported, not %s. Fatal Error.\n",
+                    latticeType);
+    }
+    int checkCode = failCode;
+    bcastParallel(&checkCode, sizeof(int), 0);
+    // This assertion can only fail if different tasks failed different
+    // sanity checks.  That should not be possible.
+    assert(checkCode == failCode);
+
+    if (failCode != 0)
+        exit(failCode);
 }
 
 // --------------------------------------------------------------

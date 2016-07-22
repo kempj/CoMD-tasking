@@ -200,7 +200,7 @@ int ljForce(SimFlat* s)
     s->ePotential = 0.0;
 
 //#pragma omp parallel
-    {
+//    {
         //TODO: this needs to be executed in a parallel, non single
     ePot_tp = 0;
 //#pragma omp single
@@ -220,13 +220,13 @@ int ljForce(SimFlat* s)
         boxForce(iBox, s);
     }
 //#pragma omp taskwait
-    }
+//    }
     
 #pragma omp critical
     {
         ePot += ePot_tp;
     }
-    }
+//    }
     real_t epsilon = ((LjPotential*)(s->pot))->epsilon;
     s->ePotential = ePot*4.0*epsilon;
 

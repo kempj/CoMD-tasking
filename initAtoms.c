@@ -148,7 +148,7 @@ void setVcm(SimFlat* s, real_t newVcm[3])
 void setTemperature(SimFlat* s, real_t temperature)
 {
     // set initial velocities for the distribution
-#//pragma omp parallel for
+//#pragma omp parallel for
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
         real_t *atomP = &(s->atoms->p[MAXATOMS*iBox][0]);
 #pragma omp task depend(out: atomP[0])
@@ -166,8 +166,8 @@ void setTemperature(SimFlat* s, real_t temperature)
     // kinetic energy  = 3/2 kB * Temperature 
     if (temperature == 0.0) return;
     real_t vZero[3] = {0., 0., 0.};
-    setVcm(s, vZero);
-    kineticEnergy(s);
+    setVcm(s, vZero);//parallel for
+    kineticEnergy(s);//parallel for reduce
     real_t temp = (s->eKinetic/s->atoms->nGlobal)/kB_eV/1.5;
     // scale the velocities to achieve the target temperature
     real_t scaleFactor = sqrt(temperature/temp);
@@ -215,7 +215,8 @@ void computeVcm(SimFlat* s, real_t vcm[3])
     real_t v3 = 0.0;
 
     // sum the momenta and particle masses 
-#pragma omp parallel for reduction(+:v0) reduction(+:v1) reduction(+:v2) reduction(+:v3)
+//#pragma omp parallel for reduction(+:v0) reduction(+:v1) reduction(+:v2) reduction(+:v3)
+#pragma omp taskwait
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
         for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             v0 += s->atoms->p[iOff][0];
