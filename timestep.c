@@ -13,6 +13,7 @@
 static void advanceVelocity(SimFlat* s, int nBoxes, real_t dt);
 static void advancePosition(SimFlat* s, int nBoxes, real_t dt);
 
+extern double *reductionArray;
 
 /// Advance the simulation time to t+dt using a leap frog method
 /// (equivalent to velocity verlet).
@@ -115,6 +116,8 @@ void kineticEnergy(SimFlat* s)
 //can't do a reduction easily yet. This should be correct, even if bad for performance.
 #pragma omp taskwait
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
+    //real_t *ePotential = &(s->ePotential);
+//#pragma omp task depend(out: reductionArray[iBox]) depend(in: ePotential)
         for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
             int iSpecies = s->atoms->iSpecies[iOff];
             real_t invMass = 0.5/s->species[iSpecies].mass;

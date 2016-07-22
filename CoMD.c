@@ -83,6 +83,11 @@ static void printSimulationDataYaml(FILE* file, SimFlat* s);
 static void sanityChecks(Command cmd, double cutoff, double latticeConst, char latticeType[8]);
 
 
+
+double *reductionArray;
+double globalEnergy;
+
+
 int main(int argc, char** argv)
 {
     // Prolog
@@ -200,21 +205,22 @@ SimFlat* initSimulation(Command cmd)
 #pragma omp parallel 
     {
 #pragma omp single
-    {
-    setTemperature(sim, cmd.temperature);//parallel for, and reduce
-    randomDisplacements(sim, cmd.initialDelta);//parallel for
+        {
+            reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
+            setTemperature(sim, cmd.temperature);//parallel for, and reduce
+            randomDisplacements(sim, cmd.initialDelta);//parallel for
 
-    sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
+            sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
 
-    // Forces must be computed before we call the time stepper.
-    startTimer(redistributeTimer);
-    redistributeAtoms(sim);
-    stopTimer(redistributeTimer);
+            // Forces must be computed before we call the time stepper.
+            startTimer(redistributeTimer);
+            redistributeAtoms(sim);
+            stopTimer(redistributeTimer);
 
-    startTimer(computeForceTimer);
-    computeForce(sim);
-    stopTimer(computeForceTimer);
-    }}
+            startTimer(computeForceTimer);
+            computeForce(sim);
+            stopTimer(computeForceTimer);
+        }}
 
     kineticEnergy(sim);
 

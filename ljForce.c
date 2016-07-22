@@ -97,12 +97,9 @@ static int ljForce(SimFlat* s);
 static void ljPrint(FILE* file, BasePotential* pot);
 
 
-static double ePot_tp;
-#pragma omp threadprivate (ePot_tp)
-//static real3* force_tp;
-//#pragma omp threadprivate (force_tp)
-//static real3* force = NULL;
-
+extern double *reductionArray;
+//static double ePot_tp;
+//#pragma omp threadprivate (ePot_tp)
 
 void ljDestroy(BasePotential** inppot)
 {
@@ -182,7 +179,7 @@ void boxForce(int iBox, SimFlat *s)
                     real_t r6 = s6 * (r2*r2*r2);
                     real_t eLocal = r6 * (r6 - 1.0) - eShift;
                     s->atoms->U[iOff] += 0.5*eLocal;
-                    ePot_tp += 0.5*eLocal;
+                    reductionArray[iBox] += 0.5*eLocal;
 
                     real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
                     for (int m=0; m<3; m++) {
@@ -196,39 +193,55 @@ void boxForce(int iBox, SimFlat *s)
 
 int ljForce(SimFlat* s)
 {
-    real_t ePot = 0.0;
-    s->ePotential = 0.0;
-
+//    real_t ePot = 0.0;
+//    s->ePotential = 0.0;
 //#pragma omp parallel
 //    {
-        //TODO: this needs to be executed in a parallel, non single
-    ePot_tp = 0;
+    //ePot_tp = 0;
 //#pragma omp single
-    {
+//    {
     for (int iBox=0; iBox < s->boxes->nTotalBoxes; iBox++) {
         //is there a need to out depend f as well?
         real_t *atoms = &(s->atoms->U[MAXATOMS*iBox]);
 #pragma omp task depend(inout: atoms[0] )
-        for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
-            zeroReal3(s->atoms->f[ii]);
-            s->atoms->U[ii] = 0.;
+        {
+            for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
+                zeroReal3(s->atoms->f[ii]);
+                s->atoms->U[ii] = 0.;
+            }
+            reductionArray[iBox] = 0.;
         }
     }
     for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
         real_t *atoms = &(s->atoms->U[MAXATOMS*iBox]);
-#pragma omp task depend(inout: atoms[0] )
+#pragma omp task depend(inout: atoms[0]) depend(out: reductionArray[iBox] )
         boxForce(iBox, s);
     }
-//#pragma omp taskwait
-//    }
     
-#pragma omp critical
-    {
-        ePot += ePot_tp;
-    }
+//#pragma omp critical
+//    {
+//        ePot += ePot_tp;
 //    }
-    real_t epsilon = ((LjPotential*)(s->pot))->epsilon;
-    s->ePotential = ePot*4.0*epsilon;
+//    }
+    //reduce reductionArray into globalEnergy
+    int reductionStride = 8;
+    while( reductionStride < s->boxes->nTotalBoxes) { 
+        int offset = reductionStride / 8;
+        for(int boxNum=0; boxNum < s->boxes->nTotalBoxes; boxNum +=reductionStride) {
+#pragma omp task depend(inout: reductionArray[boxNum         ], reductionArray[boxNum+  offset],\
+                               reductionArray[boxNum+2*offset], reductionArray[boxNum+3*offset],\
+                               reductionArray[boxNum+4*offset], reductionArray[boxNum+5*offset],\
+                               reductionArray[boxNum+6*offset], reductionArray[boxNum+7*offset])
+            for(int i=boxNum+offset; i<(boxNum+reductionStride) && i<s->boxes->nLocalBoxes; i += offset) {
+                reductionArray[boxNum] += reductionArray[i];
+            }
+        }
+        reductionStride *= 8;
+    }
+
+    real_t *ePotential = &(s->ePotential);
+#pragma omp task depend(in: reductionArray[0]) depend(out: *ePotential)
+    *ePotential = reductionArray[0]*4.0*((LjPotential*)(s->pot))->epsilon;
 
     return 0;
 }

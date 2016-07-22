@@ -19,6 +19,8 @@
 static int myRank = 0;
 static int nRanks = 1;
 
+
+
 #ifdef DO_MPI
 #ifdef SINGLE
 #define REAL_MPI_TYPE MPI_FLOAT
