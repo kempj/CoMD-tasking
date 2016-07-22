@@ -193,36 +193,29 @@ void boxForce(int iBox, SimFlat *s)
 
 int ljForce(SimFlat* s)
 {
-//    real_t ePot = 0.0;
-//    s->ePotential = 0.0;
-//#pragma omp parallel
-//    {
-    //ePot_tp = 0;
-//#pragma omp single
-//    {
-    for (int iBox=0; iBox < s->boxes->nTotalBoxes; iBox++) {
-        //is there a need to out depend f as well?
-        real_t *atoms = &(s->atoms->U[MAXATOMS*iBox]);
-#pragma omp task depend(inout: atoms[0] )
+    real3  *atomF = s->atoms->f;
+    real3  *atomR = s->atoms->r;
+    real_t *atomU = s->atoms->U;
+    for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
+#pragma omp task depend(out: atomU[iBox], reductionArray[iBox], atomF[iBox]) depend(in: atomR[iBox])
         {
             for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
                 zeroReal3(s->atoms->f[ii]);
                 s->atoms->U[ii] = 0.;
             }
             reductionArray[iBox] = 0.;
+            boxForce(iBox, s);
         }
     }
-    for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
-        real_t *atoms = &(s->atoms->U[MAXATOMS*iBox]);
-#pragma omp task depend(inout: atoms[0]) depend(out: reductionArray[iBox] )
-        boxForce(iBox, s);
+    for (int iBox=s->boxes->nLocalBoxes; iBox < s->boxes->nTotalBoxes; iBox++) {
+#pragma omp task depend(out: atomU[iBox], atomF[iBox] )
+        {
+            for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
+                zeroReal3(s->atoms->f[ii]);
+                s->atoms->U[ii] = 0.;
+            }
+        }
     }
-    
-//#pragma omp critical
-//    {
-//        ePot += ePot_tp;
-//    }
-//    }
 
     real_t *ePotential = &(s->ePotential);
     ompReduce(reductionArray, s->boxes->nTotalBoxes);
