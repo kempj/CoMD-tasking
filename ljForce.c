@@ -163,18 +163,18 @@ void boxForce(int iBox, SimFlat *s)
 
     int nNbrBoxes = 27;
     int nIBox = s->boxes->nAtoms[iBox];
-    for (int jTmp=0; jTmp < nNbrBoxes; jTmp++) {
+    for(int jTmp=0; jTmp < nNbrBoxes; jTmp++) {
         int jBox  = s->boxes->nbrBoxes[iBox][jTmp];
         int nJBox = s->boxes->nAtoms[jBox];
-        for (int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
-            for (int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
+        for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
+            for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
                 real3 dr;
                 real_t r2 = 0.0;
-                for (int m=0; m<3; m++) {
+                for(int m=0; m<3; m++) {
                     dr[m] = s->atoms->r[iOff][m] - s->atoms->r[jOff][m];
                     r2+=dr[m]*dr[m];
                 }
-                if ( r2 <= rCut2 && r2 > 0.0) {
+                if(r2<=rCut2 && r2>0.0) {
                     r2 = 1.0/r2;
                     real_t r6 = s6 * (r2*r2*r2);
                     real_t eLocal = r6 * (r6 - 1.0) - eShift;
@@ -196,8 +196,22 @@ int ljForce(SimFlat* s)
     real3  *atomF = s->atoms->f;
     real3  *atomR = s->atoms->r;
     real_t *atomU = s->atoms->U;
+    int neighbors[27];
+
     for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
-#pragma omp task depend(out: atomU[iBox], reductionArray[iBox], atomF[iBox]) depend(in: atomR[iBox])
+        for(int nBox=0; nBox < 27; nBox++) {
+            neighbors[nBox] =  s->boxes->nbrBoxes[iBox][nBox];
+        }
+#pragma omp task depend(out: atomU[iBox], reductionArray[iBox], atomF[iBox]) \
+                 depend( in: atomR[neighbors[0 ]], atomR[neighbors[1 ]], atomR[neighbors[2 ]], \
+                             atomR[neighbors[3 ]], atomR[neighbors[4 ]], atomR[neighbors[5 ]], \
+                             atomR[neighbors[6 ]], atomR[neighbors[7 ]], atomR[neighbors[8 ]], \
+                             atomR[neighbors[9 ]], atomR[neighbors[10]], atomR[neighbors[11]], \
+                             atomR[neighbors[12]], atomR[neighbors[13]], atomR[neighbors[14]], \
+                             atomR[neighbors[15]], atomR[neighbors[16]], atomR[neighbors[17]], \
+                             atomR[neighbors[18]], atomR[neighbors[19]], atomR[neighbors[20]], \
+                             atomR[neighbors[21]], atomR[neighbors[22]], atomR[neighbors[23]], \
+                             atomR[neighbors[24]], atomR[neighbors[25]], atomR[neighbors[26]] )
         {
             for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
                 zeroReal3(s->atoms->f[ii]);
@@ -207,20 +221,19 @@ int ljForce(SimFlat* s)
             boxForce(iBox, s);
         }
     }
+
     for (int iBox=s->boxes->nLocalBoxes; iBox < s->boxes->nTotalBoxes; iBox++) {
 #pragma omp task depend(out: atomU[iBox], atomF[iBox] )
-        {
-            for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
-                zeroReal3(s->atoms->f[ii]);
-                s->atoms->U[ii] = 0.;
-            }
+        for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
+            zeroReal3(s->atoms->f[ii]);
+            s->atoms->U[ii] = 0.;
         }
     }
 
     real_t *ePotential = &(s->ePotential);
     ompReduce(reductionArray, s->boxes->nTotalBoxes);
 
-#pragma omp task depend(in: reductionArray[0]) depend(out: *ePotential)
+#pragma omp task depend(in: reductionArray[0]) depend(out: ePotential[0])
     *ePotential = reductionArray[0]*4.0*((LjPotential*)(s->pot))->epsilon;
 
     return 0;

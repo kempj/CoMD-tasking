@@ -120,10 +120,10 @@ void setVcm(SimFlat* s, real_t newVcm[3])
     vShift[1] = (newVcm[1] - oldVcm[1]);
     vShift[2] = (newVcm[2] - oldVcm[2]);
 
+    real3 *atomP = s->atoms->p;
     //   #pragma omp parallel for
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
-        real_t *atomP = &(s->atoms->p[MAXATOMS*iBox][0]);
-#pragma omp task depend(inout: atomP[0])
+#pragma omp task depend(inout: atomP[iBox][0])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iSpecies = s->atoms->iSpecies[iOff];
             real_t mass = s->species[iSpecies].mass;
@@ -148,10 +148,10 @@ void setVcm(SimFlat* s, real_t newVcm[3])
 void setTemperature(SimFlat* s, real_t temperature)
 {
     // set initial velocities for the distribution
+    real3 *atomP = s->atoms->p;
 //#pragma omp parallel for
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
-        real_t *atomP = &(s->atoms->p[MAXATOMS*iBox][0]);
-#pragma omp task depend(out: atomP[0])
+#pragma omp task depend(out: atomP[iBox][0])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iType = s->atoms->iSpecies[iOff];
             real_t mass = s->species[iType].mass;
@@ -173,8 +173,7 @@ void setTemperature(SimFlat* s, real_t temperature)
     real_t scaleFactor = sqrt(temperature/temp);
 //#pragma omp parallel for
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
-        real_t *atomP = &(s->atoms->p[MAXATOMS*iBox][0]);
-#pragma omp task depend(out: atomP[0])
+#pragma omp task depend(out: atomP[iBox][0])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             s->atoms->p[iOff][0] *= scaleFactor;
             s->atoms->p[iOff][1] *= scaleFactor;
@@ -192,9 +191,9 @@ void setTemperature(SimFlat* s, real_t temperature)
 void randomDisplacements(SimFlat* s, real_t delta)
 {
 //#pragma omp parallel for
+    real3 *atomR = s->atoms->r;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
-        real_t *atomR = &(s->atoms->r[MAXATOMS*iBox][0]);
-#pragma omp task depend(inout: atomR[0])
+#pragma omp task depend(inout: atomR[iBox][0])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             uint64_t seed = mkSeed(s->atoms->gid[iOff], 457);
             s->atoms->r[iOff][0] += (2.0*lcg61(&seed)-1.0) * delta;

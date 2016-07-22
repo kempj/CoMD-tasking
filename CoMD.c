@@ -103,7 +103,7 @@ int main(int argc, char** argv)
     printCmdYaml(yamlFile, &cmd);
     printCmdYaml(screenOut, &cmd);
 
-    SimFlat* sim = initSimulation(cmd);
+    SimFlat* sim = initSimulation(cmd);//had parallel region
     printSimulationDataYaml(yamlFile, sim);
     printSimulationDataYaml(screenOut, sim);
 
