@@ -21,11 +21,12 @@ static int nRanks = 1;
 
 
 
-void ompReduce(double *depArray, int arraySize)
+
+void ompReduceStride(double *depArray, int arraySize, int depStride)
 {
-    int reductionStride = 8;
-    while( reductionStride < arraySize) { 
-        int offset = reductionStride / 8;
+    int reductionStride = 16*depStride;
+    int offset = depStride;
+    while( offset < arraySize ) { 
         for(int boxNum=0; boxNum < arraySize; boxNum +=reductionStride) {
 #pragma omp task depend(inout: depArray[boxNum]) \
                  depend(in   : depArray[boxNum +  offset],\
@@ -40,8 +41,13 @@ void ompReduce(double *depArray, int arraySize)
                 depArray[boxNum] += depArray[i];
             }
         }
-        reductionStride *= 8;
+        offset = reductionStride;
+        reductionStride *= 16;
     }
+}
+
+void ompReduce(double *depArray, int arraySize) {
+    ompReduceStride(depArray, arraySize, 1);
 }
 
 #ifdef DO_MPI
