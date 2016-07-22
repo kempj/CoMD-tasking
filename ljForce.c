@@ -223,23 +223,10 @@ int ljForce(SimFlat* s)
 //        ePot += ePot_tp;
 //    }
 //    }
-    //reduce reductionArray into globalEnergy
-    int reductionStride = 8;
-    while( reductionStride < s->boxes->nTotalBoxes) { 
-        int offset = reductionStride / 8;
-        for(int boxNum=0; boxNum < s->boxes->nTotalBoxes; boxNum +=reductionStride) {
-#pragma omp task depend(inout: reductionArray[boxNum         ], reductionArray[boxNum+  offset],\
-                               reductionArray[boxNum+2*offset], reductionArray[boxNum+3*offset],\
-                               reductionArray[boxNum+4*offset], reductionArray[boxNum+5*offset],\
-                               reductionArray[boxNum+6*offset], reductionArray[boxNum+7*offset])
-            for(int i=boxNum+offset; i<(boxNum+reductionStride) && i<s->boxes->nLocalBoxes; i += offset) {
-                reductionArray[boxNum] += reductionArray[i];
-            }
-        }
-        reductionStride *= 8;
-    }
 
     real_t *ePotential = &(s->ePotential);
+    ompReduce(reductionArray, s->boxes->nTotalBoxes);
+
 #pragma omp task depend(in: reductionArray[0]) depend(out: *ePotential)
     *ePotential = reductionArray[0]*4.0*((LjPotential*)(s->pot))->epsilon;
 

@@ -13,6 +13,9 @@ typedef struct RankReduceDataSt
    int rank;
 } RankReduceData;
 
+/// reduce an array into it's first element
+void ompReduce(double *depArray, int arraySize);
+
 /// Return total number of processors.
 int getNRanks(void);
 
