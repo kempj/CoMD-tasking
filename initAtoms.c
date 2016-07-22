@@ -166,14 +166,14 @@ void setTemperature(SimFlat* s, real_t temperature)
     // kinetic energy  = 3/2 kB * Temperature 
     if (temperature == 0.0) return;
     real_t vZero[3] = {0., 0., 0.};
-    setVcm(s, vZero);//parallel for
-    kineticEnergy(s);//parallel for reduce
+    setVcm(s, vZero);//parallel for(replaced)
+    kineticEnergy(s);//parallel for reduce(serialized)
     real_t temp = (s->eKinetic/s->atoms->nGlobal)/kB_eV/1.5;
     // scale the velocities to achieve the target temperature
     real_t scaleFactor = sqrt(temperature/temp);
 //#pragma omp parallel for
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(out: atomP[iBox][0])
+#pragma omp task depend(inout: atomP[iBox][0])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             s->atoms->p[iOff][0] *= scaleFactor;
             s->atoms->p[iOff][1] *= scaleFactor;

@@ -103,7 +103,7 @@ int main(int argc, char** argv)
     printCmdYaml(yamlFile, &cmd);
     printCmdYaml(screenOut, &cmd);
 
-    SimFlat* sim = initSimulation(cmd);//had parallel region
+    SimFlat* sim = initSimulation(cmd);//has parallel region
     printSimulationDataYaml(yamlFile, sim);
     printSimulationDataYaml(screenOut, sim);
 
@@ -379,7 +379,7 @@ void printThings(SimFlat* s, int iStep, double elapsedTime)
     real_t time = iStep*s->dt;
     real_t eTotal = (s->ePotential+s->eKinetic) / s->atoms->nGlobal;
     real_t eK = s->eKinetic / s->atoms->nGlobal;
-    real_t eU = s->ePotential / s->atoms->nGlobal;
+    real_t eU = s->ePotential / s->atoms->nGlobal;//TODO: This needs to be synchronized
     real_t Temp = (s->eKinetic / s->atoms->nGlobal) / (kB_eV * 1.5);
 
     double timePerAtom = 1.0e6*elapsedTime/(double)(nEval*s->atoms->nLocal);
