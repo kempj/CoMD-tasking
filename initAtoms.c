@@ -17,6 +17,12 @@
 
 static void computeVcm(SimFlat* s, real_t vcm[3]);
 
+extern real3 *r3ReductionArray;
+double *reductionArray;
+
+real_t vZero[3] = {0., 0., 0.};
+
+
 /// \details
 /// Call functions such as createFccLattice and setTemperature to set up
 /// initial atom positions and momenta.
@@ -110,17 +116,36 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 
 /// Sets the center of mass velocity of the system.
 /// \param [in] newVcm The desired center of mass velocity.
-void setVcm(SimFlat* s, real_t newVcm[3])
+void setVcm(SimFlat* s, real_t *newVcm)
 {
     real_t oldVcm[3];
-    computeVcm(s, oldVcm);
+    //computeVcm(s, oldVcm);
+    real3 *atomP = s->atoms->p;
+    for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
+#pragma omp task depend( in: atomP[iBox]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
+        for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+            r3ReductionArray[iBox][0] += s->atoms->p[iOff][0];
+            r3ReductionArray[iBox][1] += s->atoms->p[iOff][1];
+            r3ReductionArray[iBox][2] += s->atoms->p[iOff][2];
+
+            int iSpecies = s->atoms->iSpecies[iOff];
+            reductionArray[iOff] += s->species[iSpecies].mass;
+        }
+    }
+    ompReduceStride(r3ReductionArray[0], s->boxes->nLocalBoxes, 3);
+    ompReduce(reductionArray, s->boxes->nLocalBoxes);//NOTE: might want to combine these.
+
+    real_t v3 = reductionArray[0]; 
+    oldVcm[0] = r3ReductionArray[0][0]/v3;
+    oldVcm[1] = r3ReductionArray[0][1]/v3;
+    oldVcm[2] = r3ReductionArray[0][2]/v3;
 
     real_t vShift[3];
     vShift[0] = (newVcm[0] - oldVcm[0]);
     vShift[1] = (newVcm[1] - oldVcm[1]);
     vShift[2] = (newVcm[2] - oldVcm[2]);
 
-    real3 *atomP = s->atoms->p;
+    //real3 *atomP = s->atoms->p;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
 #pragma omp task depend(inout: atomP[iBox][0])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
@@ -162,8 +187,7 @@ void setTemperature(SimFlat* s, real_t temperature)
     }
     if (temperature == 0.0)
         return;
-    real_t vZero[3] = {0., 0., 0.};
-    setVcm(s, vZero);//atomP inout
+    setVcm(s, &(vZero[0]));//atomP inout
     kineticEnergy(s);//parallel for reduce(serialized)
     
     real_t temp = (s->eKinetic/s->atoms->nGlobal)/kB_eV/1.5;
@@ -200,41 +224,45 @@ void randomDisplacements(SimFlat* s, real_t delta)
 }
 
 /// Computes the center of mass velocity of the system.
-void computeVcm(SimFlat* s, real_t vcm[3])
+void computeVcm(SimFlat* s, real_t *vcm)
 {
-    real_t vcmLocal[4] = {0., 0., 0., 0.};
-    real_t vcmSum[4] = {0., 0., 0., 0.};
-    real_t v0 = 0.0;
-    real_t v1 = 0.0;
-    real_t v2 = 0.0;
-    real_t v3 = 0.0;
+    //real_t vcmLocal[4] = {0., 0., 0., 0.};
+    //real_t vcmSum[4] = {0., 0., 0., 0.};
+    //real_t v0 = 0.0;
+    //real_t v1 = 0.0;
+    //real_t v2 = 0.0;
+    //real_t v3 = 0.0;
 
     // sum the momenta and particle masses 
 //#pragma omp parallel for reduction(+:v0) reduction(+:v1) reduction(+:v2) reduction(+:v3)
 #pragma omp taskwait
+    real3 *atomP = s->atoms->p;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
+#pragma omp task depend( in: atomP[iBox]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
         for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-            v0 += s->atoms->p[iOff][0];
-            v1 += s->atoms->p[iOff][1];
-            v2 += s->atoms->p[iOff][2];
+            r3ReductionArray[iBox][0] += s->atoms->p[iOff][0];
+            r3ReductionArray[iBox][1] += s->atoms->p[iOff][1];
+            r3ReductionArray[iBox][2] += s->atoms->p[iOff][2];
 
             int iSpecies = s->atoms->iSpecies[iOff];
-            v3 += s->species[iSpecies].mass;
+            reductionArray[iOff] += s->species[iSpecies].mass;
         }
     }
+    ompReduceStride(r3ReductionArray[0], s->boxes->nLocalBoxes, 3);
 
-    vcmLocal[0] = v0;
-    vcmLocal[1] = v1;
-    vcmLocal[2] = v2;
-    vcmLocal[3] = v3;
+//#pragma omp task depend(in : r3ReductionArray[0]) depend( out: v0)
+    //vcmLocal[0] = v0;
+    //vcmLocal[1] = v1;
+    //vcmLocal[2] = v2;
+    //vcmLocal[3] = v3;
 
-    startTimer(commReduceTimer);
-    addRealParallel(vcmLocal, vcmSum, 4);
-    stopTimer(commReduceTimer);
+    //startTimer(commReduceTimer);
+    //addRealParallel(vcmLocal, vcmSum, 4);
+    //stopTimer(commReduceTimer);
 
-    real_t totalMass = vcmSum[3];
-    vcm[0] = vcmSum[0]/totalMass;
-    vcm[1] = vcmSum[1]/totalMass;
-    vcm[2] = vcmSum[2]/totalMass;
+    //real_t totalMass = vcmSum[3];
+    //vcm[0] = v0/v3;
+    //vcm[1] = v1/v3;
+    //vcm[2] = v2/v3;
 }
 

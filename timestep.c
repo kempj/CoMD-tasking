@@ -107,10 +107,6 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 /// local potential energy is a by-product of the force routine.
 void kineticEnergy(SimFlat* s)
 {
-    //real_t eLocal[2];
-    //real_t kenergy = 0.0;
-    //eLocal[0] = s->ePotential;
-    //eLocal[1] = 0;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
         real3  *atomP = s->atoms->p;
 #pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox])
@@ -125,14 +121,6 @@ void kineticEnergy(SimFlat* s)
 
     ompReduce(reductionArray, s->boxes->nLocalBoxes);
 
-    //eLocal[1] = kenergy;
-
-    //real_t eSum[2];
-    //startTimer(commReduceTimer);
-    //addRealParallel(eLocal, eSum, 2);
-    //stopTimer(commReduceTimer);
-    //s->ePotential = eSum[0];
-    
     real_t *ePotential = &(s->ePotential);
 #pragma omp task depend( in: reductionArray[0] ) depend( out: ePotential[0] )
     s->eKinetic = reductionArray[0];

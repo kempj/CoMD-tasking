@@ -84,6 +84,7 @@ static void sanityChecks(Command cmd, double cutoff, double latticeConst, char l
 
 
 
+real3 *r3ReductionArray;
 double *reductionArray;
 double globalEnergy;
 
@@ -207,6 +208,7 @@ SimFlat* initSimulation(Command cmd)
 #pragma omp single
         {
             reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
+            r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(real3));
             setTemperature(sim, cmd.temperature);//atomP -> ?? -> atomP
             randomDisplacements(sim, cmd.initialDelta);//parallel for
 
