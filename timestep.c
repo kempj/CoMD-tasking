@@ -34,11 +34,11 @@ extern double globalEnergy;
 /// After nSteps the kinetic energy is computed for diagnostic output.
 double timestep(SimFlat* s, int nSteps, real_t dt)
 {
-    for (int ii=0; ii<nSteps; ++ii) {
 #pragma omp parallel 
     {
 #pragma omp single
     {
+    for (int ii=0; ii<nSteps; ++ii) {
         startTimer(velocityTimer);
         advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); 
         stopTimer(velocityTimer);
@@ -58,9 +58,10 @@ double timestep(SimFlat* s, int nSteps, real_t dt)
         startTimer(velocityTimer);
         advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); 
         stopTimer(velocityTimer);
+
+        kineticEnergy(s);
     }
     }}
-    kineticEnergy(s);
 
     return s->ePotential;
 }

@@ -7,9 +7,9 @@
 #define CoMD_KERNEL_RELEASE "'4.4.0-31-generic'"
 #define CoMD_PROCESSOR "'x86_64'"
 
-#define CoMD_COMPILER "'/opt/intel/compilers_and_libraries_2016.3.210/linux/bin/intel64/icc'"
-#define CoMD_COMPILER_VERSION "'icc (ICC) 16.0.3 20160415'"
-#define CoMD_CFLAGS "'-std=c99 -fopenmp -DDOUBLE -g -O3  '"
+#define CoMD_COMPILER "'/usr/bin/gcc'"
+#define CoMD_COMPILER_VERSION "'gcc (Ubuntu 5.3.1-14ubuntu2.1) 5.3.1 20160413'"
+#define CoMD_CFLAGS "'-std=c99 -fopenmp -DDOUBLE -g   '"
 #define CoMD_LDFLAGS "'-lm '"
 
 #endif

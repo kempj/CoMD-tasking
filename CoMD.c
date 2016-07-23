@@ -206,25 +206,27 @@ SimFlat* initSimulation(Command cmd)
 #pragma omp parallel 
     {
 #pragma omp single
-        {
-            reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
-            r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(real3));
-            setTemperature(sim, cmd.temperature);//atomP -> ?? -> atomP
-            randomDisplacements(sim, cmd.initialDelta);//parallel for
+    {
+        reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
+        r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(real3));
 
-            sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
+        setTemperature(sim, cmd.temperature);//out: atomP, vcm reduction, ePotential 
+        randomDisplacements(sim, cmd.initialDelta);//inout atomR
 
-            // Forces must be computed before we call the time stepper.
-            startTimer(redistributeTimer);
-            redistributeAtoms(sim);
-            stopTimer(redistributeTimer);
+        sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
 
-            startTimer(computeForceTimer);
-            computeForce(sim);
-            stopTimer(computeForceTimer);
-        }}
+        // Forces must be computed before we call the time stepper.
+        startTimer(redistributeTimer);
+        redistributeAtoms(sim);//inout: atomP atomR
+        stopTimer(redistributeTimer);
 
-    kineticEnergy(sim);
+        startTimer(computeForceTimer);
+        computeForce(sim);//in atomR
+        stopTimer(computeForceTimer);
+
+        kineticEnergy(sim);//in: atomP, out: ePotential; reduction
+    }}
+
 
     return sim;
 }

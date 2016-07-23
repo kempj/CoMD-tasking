@@ -119,17 +119,26 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 void setVcm(struct SimFlatSt* s, real_t vcm[3])
 {
     real3 *atomP = s->atoms->p;
+#pragma omp taskwait
+    printf("number of boxes = %d\n", s->boxes->nLocalBoxes);
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend( in: atomP[iBox]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
-        for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-            r3ReductionArray[iBox][0] += s->atoms->p[iOff][0];
-            r3ReductionArray[iBox][1] += s->atoms->p[iOff][1];
-            r3ReductionArray[iBox][2] += s->atoms->p[iOff][2];
+#pragma omp task shared( s ) depend( in: atomP[iBox]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
+        {
+            printf("in vcm for box %d\n", iBox);
+            int Off = MAXATOMS*iBox;
+            for (int ii=0; ii<s->boxes->nAtoms[iBox]; ++ii) {
+                r3ReductionArray[iBox][0] += s->atoms->p[Off+ii][0];
+                r3ReductionArray[iBox][1] += s->atoms->p[Off+ii][1];
+                r3ReductionArray[iBox][2] += s->atoms->p[Off+ii][2];
 
-            int iSpecies = s->atoms->iSpecies[iOff];
-            reductionArray[iOff] += s->species[iSpecies].mass;
+                int iSpecies = s->atoms->iSpecies[Off+ii];
+                reductionArray[Off+ii] += s->species[iSpecies].mass;
+            }
         }
+#pragma omp taskwait
     }
+#pragma omp taskwait
+    printf("first loop done\n");
     ompReduceStride(r3ReductionArray[0], s->boxes->nLocalBoxes, 3);
     ompReduce(reductionArray, s->boxes->nLocalBoxes);//NOTE: might want to combine these.
 
@@ -182,8 +191,10 @@ void setTemperature(SimFlat* s, real_t temperature)
     }
     if (temperature == 0.0)
         return;
-    setVcm(s, &(vZero[0]));//atomP inout
-    kineticEnergy(s);//parallel for reduce(serialized)
+#pragma omp taskwait
+    setVcm(s, vZero);//atomP inout -> reduction -> atomP inout
+#pragma omp taskwait
+    kineticEnergy(s);//atomP reduced into ePotential
     
     real_t temp = (s->eKinetic/s->atoms->nGlobal)/kB_eV/1.5;
     real_t scaleFactor = sqrt(temperature/temp);
@@ -205,7 +216,6 @@ void setTemperature(SimFlat* s, real_t temperature)
 /// \param [in] delta The maximum displacement (along each axis).
 void randomDisplacements(SimFlat* s, real_t delta)
 {
-//#pragma omp parallel for
     real3 *atomR = s->atoms->r;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
 #pragma omp task depend(inout: atomR[iBox][0])
