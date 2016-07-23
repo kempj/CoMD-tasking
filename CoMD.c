@@ -208,6 +208,7 @@ SimFlat* initSimulation(Command cmd)
 #pragma omp single
     {
         reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
+
         r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(real3));
 
         setTemperature(sim, cmd.temperature);//out: atomP, vcm reduction, ePotential 

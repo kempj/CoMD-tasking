@@ -116,15 +116,15 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 
 /// Sets the center of mass velocity of the system.
 /// \param [in] newVcm The desired center of mass velocity.
-void setVcm(struct SimFlatSt* s, real_t vcm[3])
+void setVcm(struct SimFlatSt* s)
 {
     real3 *atomP = s->atoms->p;
-#pragma omp taskwait
-    printf("number of boxes = %d\n", s->boxes->nLocalBoxes);
+//#pragma omp taskwait
+//    printf("number of boxes = %d\n", s->boxes->nLocalBoxes);
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task shared( s ) depend( in: atomP[iBox]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
+#pragma omp task depend( in: atomP[iBox]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
         {
-            printf("in vcm for box %d\n", iBox);
+//            printf("in vcm for box %d\n", iBox);
             int Off = MAXATOMS*iBox;
             for (int ii=0; ii<s->boxes->nAtoms[iBox]; ++ii) {
                 r3ReductionArray[iBox][0] += s->atoms->p[Off+ii][0];
@@ -135,30 +135,30 @@ void setVcm(struct SimFlatSt* s, real_t vcm[3])
                 reductionArray[Off+ii] += s->species[iSpecies].mass;
             }
         }
-#pragma omp taskwait
+//#pragma omp taskwait
     }
-#pragma omp taskwait
-    printf("first loop done\n");
+//#pragma omp taskwait
+//    printf("first loop done\n");
     ompReduceStride(r3ReductionArray[0], s->boxes->nLocalBoxes, 3);
     ompReduce(reductionArray, s->boxes->nLocalBoxes);//NOTE: might want to combine these.
 
-#pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vcm[0])
+#pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vZero[0])
     {
         real_t v3 = reductionArray[0]; 
-        vcm[0] -= r3ReductionArray[0][0]/v3;
-        vcm[1] -= r3ReductionArray[0][1]/v3;
-        vcm[2] -= r3ReductionArray[0][2]/v3;
+        vZero[0] -= r3ReductionArray[0][0]/v3;
+        vZero[1] -= r3ReductionArray[0][1]/v3;
+        vZero[2] -= r3ReductionArray[0][2]/v3;
     }
 
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(inout: atomP[iBox][0]) depend( in: vcm[0])
+#pragma omp task depend(inout: atomP[iBox][0]) depend( in: vZero[0])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<s->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iSpecies = s->atoms->iSpecies[iOff];
             real_t mass = s->species[iSpecies].mass;
 
-            s->atoms->p[iOff][0] += mass * vcm[0];
-            s->atoms->p[iOff][1] += mass * vcm[1];
-            s->atoms->p[iOff][2] += mass * vcm[2];
+            s->atoms->p[iOff][0] += mass * vZero[0];
+            s->atoms->p[iOff][1] += mass * vZero[1];
+            s->atoms->p[iOff][2] += mass * vZero[2];
         }
     }
 }
@@ -192,7 +192,7 @@ void setTemperature(SimFlat* s, real_t temperature)
     if (temperature == 0.0)
         return;
 #pragma omp taskwait
-    setVcm(s, vZero);//atomP inout -> reduction -> atomP inout
+    setVcm(s);//atomP inout -> reduction -> atomP inout
 #pragma omp taskwait
     kineticEnergy(s);//atomP reduced into ePotential
     
