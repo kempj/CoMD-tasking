@@ -79,7 +79,7 @@ DEFAULT: ${CoMD_EXE}
 %.o: %.c
 	${CC} ${CFLAGS} -c $< -o $@
 
-${CoMD_EXE}: ${BIN_DIR} CoMD_info.h ${OBJECTS} 
+${CoMD_EXE}: ${BIN_DIR} ${OBJECTS} 
 	${CC} ${CFLAGS} -o ${CoMD_EXE} ${OBJECTS} ${LDFLAGS}
 
 CoMD_info.h: Makefile
@@ -89,7 +89,7 @@ ${BIN_DIR}:
 	@if [ ! -d ${BIN_DIR} ]; then mkdir -p ${BIN_DIR} ; fi
 
 clean:
-	rm -f *.o CoMD_info.h .depend
+	rm -f *.o CoMD-openmp
 
 distclean: clean
 	rm -f ${CoMD_EXE} .depend.bak
