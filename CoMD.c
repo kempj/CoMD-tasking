@@ -83,6 +83,7 @@ static void printSimulationDataYaml(FILE* file, SimFlat* s);
 static void sanityChecks(Command cmd, double cutoff, double latticeConst, char latticeType[8]);
 
 
+SimFlat* sim;
 
 real3 *r3ReductionArray;
 double *reductionArray;
@@ -168,7 +169,7 @@ int main(int argc, char** argv)
 /// must be initialized before the atoms.
 SimFlat* initSimulation(Command cmd)
 {
-    SimFlat* sim = comdMalloc(sizeof(SimFlat));
+    sim = comdMalloc(sizeof(SimFlat));
     sim->nSteps = cmd.nSteps;
     sim->printRate = cmd.printRate;
     sim->dt = cmd.dt;
@@ -203,16 +204,16 @@ SimFlat* initSimulation(Command cmd)
     // create lattice with desired temperature and displacement.
     createFccLattice(cmd.nx, cmd.ny, cmd.nz, latticeConstant, sim);
 
+    reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
+    r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(real3));
+
 #pragma omp parallel 
     {
 #pragma omp single
     {
-        reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
 
-        r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(real3));
-
-        setTemperature(sim, cmd.temperature);//out: atomP, vcm reduction, ePotential 
-        randomDisplacements(sim, cmd.initialDelta);//inout atomR
+        setTemperature(cmd.temperature);//out: atomP, vcm reduction, ePotential 
+        randomDisplacements(cmd.initialDelta);//inout atomR
 
         sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
 

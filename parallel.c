@@ -40,6 +40,7 @@ void ompReduceStride(double *depArray, int arraySize, int depStride)
             for(int i=boxNum+offset; i<(boxNum+reductionStride) && i<arraySize; i += offset) {
                 for(int j=0; j<offset; j++) {
                     depArray[boxNum] += depArray[i+j];
+                    depArray[i+j] = 0;
                 }
             }
         }

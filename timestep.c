@@ -114,7 +114,7 @@ void kineticEnergy(SimFlat* s)
         for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
             int iSpecies = s->atoms->iSpecies[iOff];
             real_t invMass = 0.5/s->species[iSpecies].mass;
-            reductionArray[iOff] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
+            reductionArray[iBox] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
                          s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
                          s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
         }
