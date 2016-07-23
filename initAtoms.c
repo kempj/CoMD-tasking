@@ -121,28 +121,28 @@ void setVcm()
 {
     real3 *atomP = sim->atoms->p;
 #pragma omp taskwait
-    printf("number of boxes = %d\n", &sim->boxes->nLocalBoxes);
+    //printf("number of boxes = %d\n", &sim->boxes->nLocalBoxes);
     for (int iBox=0; iBox < sim->boxes->nLocalBoxes; ++iBox) {
 #pragma omp task depend( in: atomP[iBox]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
         {
-            printf("in vcm for box %d\n", iBox);
-            printf("&sim->atoms->iSpecies = %p\n", &sim->atoms->iSpecies);
+            //printf("in vcm for box %d\n", iBox);
+            //printf("&sim->atoms->iSpecies = %p\n", &sim->atoms->iSpecies);
             int Off = MAXATOMS*iBox;
             for (int ii=0; ii < sim->boxes->nAtoms[iBox]; ++ii) {
-                printf("writing to A3: %p\n", &r3ReductionArray[iBox][0]);
+                //printf("writing to A3: %p\n", &r3ReductionArray[iBox][0]);
                 r3ReductionArray[iBox][0] += sim->atoms->p[Off+ii][0];
                 r3ReductionArray[iBox][1] += sim->atoms->p[Off+ii][1];
                 r3ReductionArray[iBox][2] += sim->atoms->p[Off+ii][2];
 
                 int iSpecies = sim->atoms->iSpecies[Off+ii];
-                printf("writing to A1: %p\n", &reductionArray[Off+ii]);
+                //printf("writing to A1: %p\n", &reductionArray[Off+ii]);
                 reductionArray[iBox] += sim->species[iSpecies].mass;
             }
         }
 #pragma omp taskwait
     }
 #pragma omp taskwait
-    printf("first loop done\n");
+    //printf("first loop done\n");
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
     ompReduce(reductionArray, sim->boxes->nLocalBoxes);//NOTE: might want to combine these.
 
@@ -184,7 +184,7 @@ void setTemperature(real_t temperature)
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
 #pragma omp task firstprivate(iBox) depend(out: atomP[iBox][0])
         {
-            printf("first tasks, iBox = %d\n", iBox);
+            //printf("first tasks, iBox = %d\n", iBox);
             for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
                 int iType = sim->atoms->iSpecies[iOff];
                 real_t mass = sim->species[iType].mass;
