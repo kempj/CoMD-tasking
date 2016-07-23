@@ -135,7 +135,7 @@ void setVcm()
                 r3ReductionArray[iBox][2] += sim->atoms->p[Off+ii][2];
 
                 int iSpecies = sim->atoms->iSpecies[Off+ii];
-                //printf("writing to A1: %p\n", &reductionArray[Off+ii]);
+                printf("writing to A1: %p\n", &reductionArray[Off+ii]);
                 reductionArray[iBox] += sim->species[iSpecies].mass;
             }
         }

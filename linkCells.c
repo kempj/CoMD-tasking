@@ -288,33 +288,20 @@ void updateLinkCells(LinkCell* boxes, Atoms* atoms)
 {
     emptyHaloCells(boxes);
 
+    //can't only copy atoms, as it might exceede the MAXATOMS limit.
+    //TODO: traverse the blocks, and create tasks that don't overlap, and take 27 dependencies?
     for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox)
     {
-        real3  *atomP = atoms->p;
-        real3  *atomR = atoms->r;
-        real3  *atomF = atoms->f;
-        real_t *atomU = atoms->U;
-#pragma omp task depend(inout: atomP[iBox], atomR[iBox], atomF[iBox], atomU[iBox] )
+//#pragma omp task depend(inout: atomP[iBox], atomR[iBox], atomF[iBox], atomU[iBox] )
         {
             int iOff = iBox*MAXATOMS;
             int ii=0;
-            //push atoms to blocks of higher value 
             while (ii < boxes->nAtoms[iBox]) {
                 int jBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
-                //if (jBox != iBox)
-                if (jBox > iBox)//changed to avoid data race.
+                if (jBox != iBox)
                     moveAtom(boxes, atoms, ii, iBox, jBox);
                 else
                     ++ii;
-            }
-            //Go through neighbors and take atoms
-            for(int nBox=0; nBox < 27; nBox++) {
-                int jBox = boxes->nbrBoxes[iBox][nBox];
-                for(ii=0; ii<boxes->nAtoms[jBox]; ii++) {
-                    if(getBoxFromCoord(boxes, atoms->r[jBox*MAXATOMS+ii]) == iBox){
-                        moveAtom(boxes, atoms, ii, jBox, iBox);
-                    }
-                }
             }
         }
     }

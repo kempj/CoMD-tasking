@@ -44,7 +44,7 @@ double timestep(SimFlat* s, int nSteps, real_t dt)
         stopTimer(velocityTimer);
 
         startTimer(positionTimer);
-        advancePosition(s, s->boxes->nLocalBoxes, dt);
+        advancePosition(s, s->boxes->nLocalBoxes, dt); // in P, out R
         stopTimer(positionTimer);
 
         startTimer(redistributeTimer);
@@ -115,15 +115,15 @@ void kineticEnergy(SimFlat* s)
             int iSpecies = s->atoms->iSpecies[iOff];
             real_t invMass = 0.5/s->species[iSpecies].mass;
             reductionArray[iBox] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
-                         s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
-                         s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
+                                      s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
+                                      s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
         }
     }
 
     ompReduce(reductionArray, s->boxes->nLocalBoxes);
 
-    real_t *ePotential = &(s->ePotential);
-#pragma omp task depend( in: reductionArray[0] ) depend( out: ePotential[0] )
+    real_t *eKinetic= &(s->eKinetic);
+#pragma omp task depend( in: reductionArray[0] ) depend( out: eKinetic[0] )
     s->eKinetic = reductionArray[0];
 }
 
@@ -143,6 +143,7 @@ void kineticEnergy(SimFlat* s)
 void redistributeAtoms(SimFlat* sim)
 {
     //This involves a copy of each atom that has moved from one cell to it's neighbor
+#pragma omp taskwait
     updateLinkCells(sim->boxes, sim->atoms);
 
     startTimer(atomHaloTimer);

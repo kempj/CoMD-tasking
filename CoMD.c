@@ -212,7 +212,7 @@ SimFlat* initSimulation(Command cmd)
 #pragma omp single
     {
 
-        setTemperature(cmd.temperature);//out: atomP, vcm reduction, ePotential 
+        setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
         randomDisplacements(cmd.initialDelta);//inout atomR
 
         sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
