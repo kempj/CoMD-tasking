@@ -28,15 +28,15 @@ void ompReduceStride(double *depArray, int arraySize, int depStride)
     int offset = depStride;
     while( offset < arraySize ) { 
         for(int boxNum=0; boxNum < arraySize; boxNum +=reductionStride) {
-#pragma omp task depend(inout: depArray[boxNum]) \
-                 depend(in   : depArray[boxNum +  offset],\
-                               depArray[boxNum+2 *offset], depArray[boxNum+3 *offset],\
-                               depArray[boxNum+4 *offset], depArray[boxNum+5 *offset],\
-                               depArray[boxNum+6 *offset], depArray[boxNum+7 *offset],\
-                               depArray[boxNum+8 *offset], depArray[boxNum+9 *offset],\
-                               depArray[boxNum+10*offset], depArray[boxNum+11*offset],\
-                               depArray[boxNum+12*offset], depArray[boxNum+13*offset],\
-                               depArray[boxNum+14*offset], depArray[boxNum+15*offset])
+//#pragma omp task depend(inout: depArray[boxNum]) \
+//                 depend(in   : depArray[boxNum +  offset],\
+//                               depArray[boxNum+2 *offset], depArray[boxNum+3 *offset],\
+//                               depArray[boxNum+4 *offset], depArray[boxNum+5 *offset],\
+//                               depArray[boxNum+6 *offset], depArray[boxNum+7 *offset],\
+//                               depArray[boxNum+8 *offset], depArray[boxNum+9 *offset],\
+//                               depArray[boxNum+10*offset], depArray[boxNum+11*offset],\
+//                               depArray[boxNum+12*offset], depArray[boxNum+13*offset],\
+//                               depArray[boxNum+14*offset], depArray[boxNum+15*offset])
             for(int i=boxNum+offset; i<(boxNum+reductionStride) && i<arraySize; i += offset) {
                 for(int j=0; j<offset; j++) {
                     depArray[boxNum] += depArray[i+j];

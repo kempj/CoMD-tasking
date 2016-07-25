@@ -213,8 +213,10 @@ SimFlat* initSimulation(Command cmd)
     {
 
         setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
+#pragma omp taskwait
         randomDisplacements(cmd.initialDelta);//inout atomR
 
+#pragma omp taskwait
         sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
 
         // Forces must be computed before we call the time stepper.
