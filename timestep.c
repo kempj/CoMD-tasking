@@ -77,7 +77,7 @@ void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
     real3 *atomP = s->atoms->p;
     real3 *atomF = s->atoms->f;
     for (int iBox=0; iBox<nBoxes; iBox++) {
-//#pragma omp task depend(inout: atomP[iBox]) depend(in: atomF[iBox])
+//#pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend(in: atomF[iBox*MAXATOMS])
         for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
             s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
             s->atoms->p[iOff][1] += dt*s->atoms->f[iOff][1];
@@ -92,7 +92,7 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
     real3 *atomR = s->atoms->r;
     for (int iBox=0; iBox<nBoxes; iBox++)
     {
-//#pragma omp task depend(inout: atomR[iBox]) depend(in: atomP[iBox])
+//#pragma omp task depend(inout: atomR[iBox*MAXATOMS]) depend(in: atomP[iBox*MAXATOMS])
         for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
         {
             int iSpecies = s->atoms->iSpecies[iOff];
@@ -108,16 +108,21 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 /// local potential energy is a by-product of the force routine.
 void kineticEnergy(SimFlat* s)
 {
+#pragma omp task depend(inout: reductionArray[0])
     reductionArray[0] = 0.;
+
     real3  *atomP = s->atoms->p;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
-#pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox])
+#pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox*MAXATOMS])
+        {
         for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
             int iSpecies = s->atoms->iSpecies[iOff];
             real_t invMass = 0.5/s->species[iSpecies].mass;
             reductionArray[iBox] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
                                       s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
                                       s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
+        }
+            printf("finishing KE loop; in: atomP[%d](%p), out: reductionArray[%d](%p)=%f\n", iBox, &atomP[iBox*MAXATOMS], iBox, &reductionArray[iBox], reductionArray[iBox]);
         }
     }
 
@@ -150,13 +155,13 @@ void redistributeAtoms(SimFlat* sim)
 
     startTimer(atomHaloTimer);
     //I don't think this does anything if there is no MPI
-    //haloExchange(sim->atomExchange, sim);
+    haloExchange(sim->atomExchange, sim);
     stopTimer(atomHaloTimer);
 
 //    real3  *atomP = sim->atoms->p;
 //    real3  *atomR = sim->atoms->r;
     for (int ii=0; ii<sim->boxes->nTotalBoxes; ++ii) {
-//#pragma omp task depend(inout: atomP[ii], atomR[ii])
+//#pragma omp task depend(inout: atomP[ii*MAXATOMS], atomR[ii*MAXATOMS])
         sortAtomsInCell(sim->atoms, sim->boxes, ii);
     }
 }

@@ -292,7 +292,7 @@ void updateLinkCells(LinkCell* boxes, Atoms* atoms)
     //TODO: traverse the blocks, and create tasks that don't overlap, and take 27 dependencies?
     for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox)
     {
-//#pragma omp task depend(inout: atomP[iBox], atomR[iBox], atomF[iBox], atomU[iBox] )
+//#pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS], atomF[iBox*MAXATOMS], atomU[iBox*MAXATOMS] )
         {
             int iOff = iBox*MAXATOMS;
             int ii=0;
