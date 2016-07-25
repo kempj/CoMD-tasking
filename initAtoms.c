@@ -140,10 +140,6 @@ void setVcm()
                 int iSpecies = sim->atoms->iSpecies[Off+ii];
                 reductionArray[iBox] += sim->species[iSpecies].mass;
             }
-            //printf("Vcm  loop 1; in : atomP[%d](%p)={%f, %f, %f}, out r3[%d](%p), r[%d](%p)\n",
-            //        Off, &atomP[Off], atomP[Off][0], atomP[Off][1], atomP[Off][2],
-            //        iBox, &r3ReductionArray[iBox], 
-            //        iBox, &reductionArray[iBox]);
         }
     }
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
@@ -159,7 +155,6 @@ void setVcm()
 
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend( in: vZero[0])
-        {
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iSpecies = sim->atoms->iSpecies[iOff];
             real_t mass = sim->species[iSpecies].mass;
@@ -167,10 +162,6 @@ void setVcm()
             sim->atoms->p[iOff][0] += mass * vZero[0];
             sim->atoms->p[iOff][1] += mass * vZero[1];
             sim->atoms->p[iOff][2] += mass * vZero[2];
-        }
-            //printf("Vcm  loop 2; in : atomP[%d](%p)={%f, %f, %f}\n", iBox*MAXATOMS, &atomP[iBox*MAXATOMS],
-            //                                                                  atomP[iBox*MAXATOMS][0], atomP[iBox*MAXATOMS][1],
-            //                                                                  atomP[iBox*MAXATOMS][2]);
         }
     }
 }
@@ -181,7 +172,6 @@ void setTemperature(real_t temperature)
     real3 *atomP = sim->atoms->p;
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
 #pragma omp task firstprivate(iBox) depend(out: atomP[iBox*MAXATOMS])
-        {
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iType = sim->atoms->iSpecies[iOff];
             real_t mass = sim->species[iType].mass;
@@ -190,8 +180,6 @@ void setTemperature(real_t temperature)
             sim->atoms->p[iOff][0] = mass * sigma * gasdev(&seed);
             sim->atoms->p[iOff][1] = mass * sigma * gasdev(&seed);
             sim->atoms->p[iOff][2] = mass * sigma * gasdev(&seed);
-        }
-        //printf("Temp loop 1, out: atomP[%d](%p) = %f\n", iBox*MAXATOMS, &atomP[iBox*MAXATOMS], atomP[iBox*MAXATOMS][0]);
         }
     }
     if (temperature == 0.0)
@@ -211,14 +199,9 @@ void setTemperature(real_t temperature)
                 sim->atoms->p[iOff][1] *= scaleFactor;
                 sim->atoms->p[iOff][2] *= scaleFactor;
             }
-        //printf("Temp loop 2, out: atomP[%d](%p) = %f\n", iBox*MAXATOMS, &atomP[iBox*MAXATOMS], atomP[iBox*MAXATOMS][0]);
         }
     }
     kineticEnergy(sim);
-    //real_t *eKinetic= &(sim->eKinetic);
-//#pragma omp task depend(in: eKinetic)
-    //temp = sim->eKinetic/sim->atoms->nGlobal/kB_eV/1.5;//This is this ever used
-    //printf("eKinetic = %f, ePotential = %f\n",sim->eKinetic, sim->ePotential);
 }
 
 /// Add a random displacement to the atom positions.

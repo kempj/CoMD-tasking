@@ -114,15 +114,12 @@ void kineticEnergy(SimFlat* s)
     real3  *atomP = s->atoms->p;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
 #pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox*MAXATOMS])
-        {
         for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
             int iSpecies = s->atoms->iSpecies[iOff];
             real_t invMass = 0.5/s->species[iSpecies].mass;
             reductionArray[iBox] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
                                       s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
                                       s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
-        }
-            //printf("KE   loop; in: atomP[%d](%p), out: reductionArray[%d](%p)=%f\n", iBox*MAXATOMS, &atomP[iBox*MAXATOMS], iBox, &reductionArray[iBox], reductionArray[iBox]);
         }
     }
 

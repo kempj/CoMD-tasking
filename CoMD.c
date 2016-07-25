@@ -366,35 +366,37 @@ void sumAtoms(SimFlat* s)
 /// assuming reasonable load balance
 void printThings(SimFlat* s, int iStep, double elapsedTime)
 {
-    // keep track previous value of iStep so we can calculate number of steps.
-    static int iStepPrev = -1; 
-    static int firstCall = 1;
-
-    int nEval = iStep - iStepPrev; // gives nEval = 1 for zeroth step.
-    iStepPrev = iStep;
-
-    if (! printRank() )
-        return;
-
-    if (firstCall)
+    real_t *eKinetic = &(sim->eKinetic);
+    real_t *ePotential = &(s->ePotential);
+#pragma omp task depend(in: eKinetic[0], ePotential[0])
     {
-        firstCall = 0;
-        fprintf(screenOut, 
-                "#                                                                                         Performance\n" 
-                "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature   (us/atom)     # Atoms\n");
-        fflush(screenOut);
+        // keep track previous value of iStep so we can calculate number of steps.
+        static int iStepPrev = -1; 
+        static int firstCall = 1;
+
+        int nEval = iStep - iStepPrev; // gives nEval = 1 for zeroth step.
+        iStepPrev = iStep;
+
+        if (firstCall)
+        {
+            firstCall = 0;
+            fprintf(screenOut, 
+                    "#                                                                                         Performance\n" 
+                    "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature   (us/atom)     # Atoms\n");
+            fflush(screenOut);
+        }
+
+        real_t time = iStep*s->dt;
+        real_t eTotal = (s->ePotential+s->eKinetic) / s->atoms->nGlobal;
+        real_t eK = s->eKinetic / s->atoms->nGlobal;
+        real_t eU = s->ePotential / s->atoms->nGlobal;
+        real_t Temp = (s->eKinetic / s->atoms->nGlobal) / (kB_eV * 1.5);
+
+        double timePerAtom = 1.0e6*elapsedTime/(double)(nEval*s->atoms->nLocal);
+
+        fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %10.4f %12d\n",
+                iStep, time, eTotal, eU, eK, Temp, timePerAtom, s->atoms->nGlobal);
     }
-
-    real_t time = iStep*s->dt;
-    real_t eTotal = (s->ePotential+s->eKinetic) / s->atoms->nGlobal;
-    real_t eK = s->eKinetic / s->atoms->nGlobal;
-    real_t eU = s->ePotential / s->atoms->nGlobal;//TODO: This needs to be synchronized
-    real_t Temp = (s->eKinetic / s->atoms->nGlobal) / (kB_eV * 1.5);
-
-    double timePerAtom = 1.0e6*elapsedTime/(double)(nEval*s->atoms->nLocal);
-
-    fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %10.4f %12d\n",
-            iStep, time, eTotal, eU, eK, Temp, timePerAtom, s->atoms->nGlobal);
 }
 
 /// Print information about the simulation in a format that is (mostly)
