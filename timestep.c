@@ -109,8 +109,8 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 void kineticEnergy(SimFlat* s)
 {
     reductionArray[0] = 0.;
+    real3  *atomP = s->atoms->p;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
-//        real3  *atomP = s->atoms->p;
 //#pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox])
         for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
             int iSpecies = s->atoms->iSpecies[iOff];
@@ -123,11 +123,11 @@ void kineticEnergy(SimFlat* s)
     }
 
 //    ompReduce(reductionArray, s->boxes->nLocalBoxes);
-
+#pragma omp taskwait
 //    real_t *eKinetic= &(s->eKinetic);
 //#pragma omp task depend( in: reductionArray[0] ) depend( out: eKinetic[0] )
     s->eKinetic = reductionArray[0];
-    printf("\nin kineticEnergy, eKinetic = %f\n",s->eKinetic);
+    //printf("\nin kineticEnergy, eKinetic = %f\n",s->eKinetic);
 
 }
 

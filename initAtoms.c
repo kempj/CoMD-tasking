@@ -124,37 +124,33 @@ void setVcm()
     r3ReductionArray[0][0] = 0.;
     r3ReductionArray[0][1] = 0.;
     r3ReductionArray[0][2] = 0.;
-//    real3 *atomP = sim->atoms->p;
-#pragma omp taskwait
+    real3 *atomP = sim->atoms->p;
+//#pragma omp taskwait
     //printf("number of boxes = %d\n", &sim->boxes->nLocalBoxes);
     for (int iBox=0; iBox < sim->boxes->nLocalBoxes; ++iBox) {
-//#pragma omp task depend( in: atomP[iBox]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
+#pragma omp task depend( in: atomP[iBox]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
         {
-            //printf("in vcm for box %d\n", iBox);
-            //printf("&sim->atoms->iSpecies = %p\n", &sim->atoms->iSpecies);
             int Off = MAXATOMS*iBox;
             for (int ii=0; ii < sim->boxes->nAtoms[iBox]; ++ii) {
                 //printf("writing to A3: %p\n", &r3ReductionArray[iBox][0]);
-                //r3ReductionArray[iBox][0] += sim->atoms->p[Off+ii][0];
-                r3ReductionArray[0][0] += sim->atoms->p[Off+ii][0];
-                //r3ReductionArray[iBox][1] += sim->atoms->p[Off+ii][1];
-                r3ReductionArray[0][1] += sim->atoms->p[Off+ii][1];
-                //r3ReductionArray[iBox][2] += sim->atoms->p[Off+ii][2];
-                r3ReductionArray[0][2] += sim->atoms->p[Off+ii][2];
+                r3ReductionArray[iBox][0] += sim->atoms->p[Off+ii][0];
+                r3ReductionArray[iBox][1] += sim->atoms->p[Off+ii][1];
+                r3ReductionArray[iBox][2] += sim->atoms->p[Off+ii][2];
+                //r3ReductionArray[0][0] += sim->atoms->p[Off+ii][0];
+                //r3ReductionArray[0][1] += sim->atoms->p[Off+ii][1];
+                //r3ReductionArray[0][2] += sim->atoms->p[Off+ii][2];
 
                 int iSpecies = sim->atoms->iSpecies[Off+ii];
-                //printf("writing to A1: %p\n", &reductionArray[Off+ii]);
-                //reductionArray[iBox] += sim->species[iSpecies].mass;
-                reductionArray[0] += sim->species[iSpecies].mass;
+                reductionArray[iBox] += sim->species[iSpecies].mass;
+                //reductionArray[0] += sim->species[iSpecies].mass;
             }
         }
-//#pragma omp taskwait
     }
-#pragma omp taskwait
-    //printf("first loop done\n");
-    //ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
-    //ompReduce(reductionArray, sim->boxes->nLocalBoxes);//NOTE: might want to combine these.
+//#pragma omp taskwait
+    ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
+    ompReduce(reductionArray, sim->boxes->nLocalBoxes);//NOTE: might want to combine these.
 
+#pragma omp taskwait
 //#pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vZero[0])
     {
         real_t v3 = reductionArray[0]; 
@@ -176,41 +172,27 @@ void setVcm()
     }
 }
 
-/// Sets the temperature of system.
-///
-/// Selects atom velocities randomly from a boltzmann (equilibrium)
-/// distribution that corresponds to the specified temperature.  This
-/// random process will typically result in a small, but non zero center
-/// of mass velocity and a small difference from the specified
-/// temperature.  For typical MD runs these small differences are
-/// unimportant, However, to avoid possible confusion, we set the center
-/// of mass velocity to zero and scale the velocities to exactly match
-/// the input temperature.
 void setTemperature(real_t temperature)
 {
     // set initial velocities for the distribution
-//    real3 *atomP = sim->atoms->p;
+    real3 *atomP = sim->atoms->p;
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-//#pragma omp task firstprivate(iBox) depend(out: atomP[iBox][0])
-        {
-            //printf("first tasks, iBox = %d\n", iBox);
-            for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-                int iType = sim->atoms->iSpecies[iOff];
-                real_t mass = sim->species[iType].mass;
-                real_t sigma = sqrt(kB_eV * temperature/mass);
-                uint64_t seed = mkSeed(sim->atoms->gid[iOff], 123);
-                sim->atoms->p[iOff][0] = mass * sigma * gasdev(&seed);
-                sim->atoms->p[iOff][1] = mass * sigma * gasdev(&seed);
-                sim->atoms->p[iOff][2] = mass * sigma * gasdev(&seed);
-            }
+#pragma omp task firstprivate(iBox) depend(out: atomP[iBox][0])
+        for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+            int iType = sim->atoms->iSpecies[iOff];
+            real_t mass = sim->species[iType].mass;
+            real_t sigma = sqrt(kB_eV * temperature/mass);
+            uint64_t seed = mkSeed(sim->atoms->gid[iOff], 123);
+            sim->atoms->p[iOff][0] = mass * sigma * gasdev(&seed);
+            sim->atoms->p[iOff][1] = mass * sigma * gasdev(&seed);
+            sim->atoms->p[iOff][2] = mass * sigma * gasdev(&seed);
         }
     }
     if (temperature == 0.0)
         return;
-#pragma omp taskwait
+//#pragma omp taskwait
     setVcm();//atomP inout -> reduction -> atomP inout
-    printf("vZero = {%f, %f, %f}\n", vZero[0], vZero[1], vZero[2]);
-#pragma omp taskwait
+//#pragma omp taskwait
     kineticEnergy(sim);//atomP reduced into ePotential
 #pragma omp taskwait
     
@@ -224,6 +206,7 @@ void setTemperature(real_t temperature)
             sim->atoms->p[iOff][2] *= scaleFactor;
         }
     }
+#pragma omp taskwait
     kineticEnergy(sim);
 #pragma omp taskwait
 //    real_t *eKinetic= &(sim->eKinetic);
