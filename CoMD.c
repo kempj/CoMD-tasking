@@ -213,9 +213,6 @@ SimFlat* initSimulation(Command cmd)
     {
 
         setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
-#pragma omp taskwait
-        printf("setTemp finished\n");
-        printf("eKinetic = %f, ePotential = %f\n",sim->eKinetic, sim->ePotential);
         randomDisplacements(cmd.initialDelta);//inout atomR
 
         sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);

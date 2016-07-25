@@ -168,7 +168,6 @@ void setVcm()
 
 void setTemperature(real_t temperature)
 {
-    // set initial velocities for the distribution
     real3 *atomP = sim->atoms->p;
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
 #pragma omp task firstprivate(iBox) depend(out: atomP[iBox*MAXATOMS])
