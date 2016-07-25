@@ -156,7 +156,6 @@ void setVcm()
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
     ompReduce(reductionArray, sim->boxes->nLocalBoxes);//NOTE: might want to combine these.
 
-//#pragma omp taskwait
 #pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vZero[0])
     {
         real_t v3 = reductionArray[0]; 
@@ -202,30 +201,27 @@ void setTemperature(real_t temperature)
     }
     if (temperature == 0.0)
         return;
-    //printf("entering setVcm\n");
-//#pragma omp taskwait
     setVcm();//atomP inout -> reduction -> atomP inout
-//#pragma omp taskwait
     kineticEnergy(sim);//atomP reduced into ePotential
     //printf("returning from KE\n");
-#pragma omp taskwait
+//#pragma omp taskwait
     //printf("after TW\n");
     
     real_t temp = (sim->eKinetic/sim->atoms->nGlobal)/kB_eV/1.5;
     real_t scaleFactor = sqrt(temperature/temp);
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-//#pragma omp task depend(inout: atomP[iBox])
+#pragma omp task depend(inout: atomP[iBox])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             sim->atoms->p[iOff][0] *= scaleFactor;
             sim->atoms->p[iOff][1] *= scaleFactor;
             sim->atoms->p[iOff][2] *= scaleFactor;
         }
     }
-#pragma omp taskwait
+//#pragma omp taskwait
     kineticEnergy(sim);
-#pragma omp taskwait
-//    real_t *eKinetic= &(sim->eKinetic);
-//#pragma omp task depend(in: eKinetic)
+//#pragma omp taskwait
+    real_t *eKinetic= &(sim->eKinetic);
+#pragma omp task depend(in: eKinetic)
     temp = sim->eKinetic/sim->atoms->nGlobal/kB_eV/1.5;
     printf("eKinetic = %f, ePotential = %f\n",sim->eKinetic, sim->ePotential);
 }

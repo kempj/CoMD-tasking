@@ -44,7 +44,7 @@ void ompReduceStride(double *depArray, int arraySize, int depStride)
                     depArray[i+j] = 0;
                 }
             }
-            printf("reduce(%d) on depArray[%d](%p)\n", depStride, boxNum, &depArray[boxNum]);
+            //printf("reduce(%d) on depArray[%d](%p)\n", depStride, boxNum, &depArray[boxNum]);
             }
         }
         innerStride = reductionStride;

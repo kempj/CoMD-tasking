@@ -126,7 +126,7 @@ void kineticEnergy(SimFlat* s)
     }
 
     ompReduce(reductionArray, s->boxes->nLocalBoxes);
-#pragma omp taskwait
+//#pragma omp taskwait
     real_t *eKinetic= &(s->eKinetic);
 #pragma omp task depend( in: reductionArray[0] ) depend( out: eKinetic[0] )
     s->eKinetic = reductionArray[0];
