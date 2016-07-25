@@ -163,19 +163,19 @@ void boxForce(int iBox, SimFlat *s)
 
     int nNbrBoxes = 27;
     int nIBox = s->boxes->nAtoms[iBox];
-    printf("box %d has %d atoms\n", iBox, nIBox);
+    //printf("box %d has %d atoms\n", iBox, nIBox);
     for(int jTmp=0; jTmp < nNbrBoxes; jTmp++) {
         //The first neighbor is different in here than in the original; 0 vs 32, why?
         int jBox  = s->boxes->nbrBoxes[iBox][jTmp];
-        printf("neighbor %d of box %d is %d\n", jTmp, iBox, jBox);
+        //printf("neighbor %d of box %d is %d\n", jTmp, iBox, jBox);
         int nJBox = s->boxes->nAtoms[jBox];
-        printf("Neighbor #%d of box %d is %d and has %d atoms\n", jTmp, iBox, jBox, nJBox);
+        //printf("Neighbor #%d of box %d is %d and has %d atoms\n", jTmp, iBox, jBox, nJBox);
         for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
             for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
                 real3 dr;
                 real_t r2 = 0.0;
                 for(int m=0; m<3; m++) {
-                    printf("block %d, %d, %d, %d: atomsR = %f\n", iBox, jBox, iOff, jOff, s->atoms->r[jOff][m]);
+                    //printf("block %d, %d, %d, %d: atomsR = %f\n", iBox, jBox, iOff, jOff, s->atoms->r[jOff][m]);
                     dr[m] = s->atoms->r[iOff][m] - s->atoms->r[jOff][m];
                     r2+=dr[m]*dr[m];
                 }
@@ -203,27 +203,6 @@ int ljForce(SimFlat* s)
 //    real3  *atomR = s->atoms->r;
 //    real_t *atomU = s->atoms->U;
     int neighbors[27];
-
-
-    /*
-    for(int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
-        for(int nAtom=0; nAtom<s->boxes->nAtoms[iBox]; nAtom++) {
-            printf("box %d, atomR [%d] = %f, ", iBox, nAtom, s->atoms->r[MAXATOMS*iBox+nAtom][0]);
-            printf(", %f"  , s->atoms->r[MAXATOMS*iBox+nAtom][1]);
-            printf(", %f\n", s->atoms->r[MAXATOMS*iBox+nAtom][2]);
-        }
-    }*/
-
-    /*
-   for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
-       printf("box %d has neighbors: \n", iBox);
-       for (int jTmp=0; jTmp<27; jTmp++) {
-           printf("%d(%d) ", s->boxes->nbrBoxes[iBox][jTmp], s->boxes->nAtoms[s->boxes->nbrBoxes[iBox][jTmp]]);
-       }
-       printf("\n");
-   }
-   */
-
 
 
 #pragma omp taskwait

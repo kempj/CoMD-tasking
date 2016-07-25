@@ -108,13 +108,6 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
                 }
 
 
-    for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
-        printf("box %d has neighbors: \n", iBox);
-        for (int jTmp=0; jTmp<27; jTmp++) {
-            printf("%d(%d) ", s->boxes->nbrBoxes[iBox][jTmp], s->boxes->nAtoms[s->boxes->nbrBoxes[iBox][jTmp]]);
-        }
-        printf("\n");
-    }
     // set total atoms in simulation
     startTimer(commReduceTimer);
     addIntParallel(&sim->atoms->nLocal, &sim->atoms->nGlobal, 1);
