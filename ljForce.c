@@ -236,7 +236,7 @@ int ljForce(SimFlat* s)
 #pragma omp task depend(in: reductionArray[0]) depend(out: ePotential[0])
     *ePotential = reductionArray[0]*4.0*((LjPotential*)(s->pot))->epsilon;
 
-    printf("in the end of force: eKinetic = %f, ePotential = %f\n",s->eKinetic, s->ePotential);
+    //printf("in the end of force: eKinetic = %f, ePotential = %f\n",s->eKinetic, s->ePotential);
 
     return 0;
 }

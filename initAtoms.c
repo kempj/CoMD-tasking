@@ -140,9 +140,10 @@ void setVcm()
                 int iSpecies = sim->atoms->iSpecies[Off+ii];
                 reductionArray[iBox] += sim->species[iSpecies].mass;
             }
-            printf("finishing Vcm loop 1; in : atomP[%d](%p), out r3[%d](%p), r[%d](%p)\n",iBox, &atomP[iBox],
-                                                                                           iBox, &r3ReductionArray[iBox], 
-                                                                                           iBox, &reductionArray[iBox]);
+            //printf("Vcm  loop 1; in : atomP[%d](%p)={%f, %f, %f}, out r3[%d](%p), r[%d](%p)\n",
+            //        Off, &atomP[Off], atomP[Off][0], atomP[Off][1], atomP[Off][2],
+            //        iBox, &r3ReductionArray[iBox], 
+            //        iBox, &reductionArray[iBox]);
         }
     }
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
@@ -167,7 +168,9 @@ void setVcm()
             sim->atoms->p[iOff][1] += mass * vZero[1];
             sim->atoms->p[iOff][2] += mass * vZero[2];
         }
-            printf("finishing Vcm loop 2; in : atomP[%d](%p)\n", iBox, &atomP[iBox]);
+            //printf("Vcm  loop 2; in : atomP[%d](%p)={%f, %f, %f}\n", iBox*MAXATOMS, &atomP[iBox*MAXATOMS],
+            //                                                                  atomP[iBox*MAXATOMS][0], atomP[iBox*MAXATOMS][1],
+            //                                                                  atomP[iBox*MAXATOMS][2]);
         }
     }
 }
@@ -188,7 +191,7 @@ void setTemperature(real_t temperature)
             sim->atoms->p[iOff][1] = mass * sigma * gasdev(&seed);
             sim->atoms->p[iOff][2] = mass * sigma * gasdev(&seed);
         }
-        printf("setTemp loop 1, out: atomP[%d](%p) = %f\n", iBox*MAXATOMS, &atomP[iBox*MAXATOMS], atomP[iBox*MAXATOMS][0]);
+        //printf("Temp loop 1, out: atomP[%d](%p) = %f\n", iBox*MAXATOMS, &atomP[iBox*MAXATOMS], atomP[iBox*MAXATOMS][0]);
         }
     }
     if (temperature == 0.0)
@@ -196,14 +199,19 @@ void setTemperature(real_t temperature)
     setVcm();//atomP inout -> reduction -> atomP inout
     kineticEnergy(sim);//atomP reduced into ePotential
     
-    real_t temp = (sim->eKinetic/sim->atoms->nGlobal)/kB_eV/1.5;
-    real_t scaleFactor = sqrt(temperature/temp);
+    real_t *eKinetic = &(sim->eKinetic);
+
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(inout: atomP[iBox*MAXATOMS])
-        for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-            sim->atoms->p[iOff][0] *= scaleFactor;
-            sim->atoms->p[iOff][1] *= scaleFactor;
-            sim->atoms->p[iOff][2] *= scaleFactor;
+#pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend( in: eKinetic[0])
+        {
+            real_t temp = (sim->eKinetic/sim->atoms->nGlobal)/kB_eV/1.5;
+            real_t scaleFactor = sqrt(temperature/temp);
+            for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                sim->atoms->p[iOff][0] *= scaleFactor;
+                sim->atoms->p[iOff][1] *= scaleFactor;
+                sim->atoms->p[iOff][2] *= scaleFactor;
+            }
+        //printf("Temp loop 2, out: atomP[%d](%p) = %f\n", iBox*MAXATOMS, &atomP[iBox*MAXATOMS], atomP[iBox*MAXATOMS][0]);
         }
     }
     kineticEnergy(sim);

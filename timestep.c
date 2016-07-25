@@ -122,7 +122,7 @@ void kineticEnergy(SimFlat* s)
                                       s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
                                       s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
         }
-            printf("finishing KE loop; in: atomP[%d](%p), out: reductionArray[%d](%p)=%f\n", iBox, &atomP[iBox*MAXATOMS], iBox, &reductionArray[iBox], reductionArray[iBox]);
+            //printf("KE   loop; in: atomP[%d](%p), out: reductionArray[%d](%p)=%f\n", iBox*MAXATOMS, &atomP[iBox*MAXATOMS], iBox, &reductionArray[iBox], reductionArray[iBox]);
         }
     }
 
