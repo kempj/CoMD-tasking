@@ -120,10 +120,13 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 /// \param [in] newVcm The desired center of mass velocity.
 void setVcm()
 {
-    reductionArray[0] = 0.;
-    r3ReductionArray[0][0] = 0.;
-    r3ReductionArray[0][1] = 0.;
-    r3ReductionArray[0][2] = 0.;
+#pragma omp task depend(inout: reductionArray[0], r3ReductionArray[0][0])
+    {
+        reductionArray[0] = 0.;
+        r3ReductionArray[0][0] = 0.;
+        r3ReductionArray[0][1] = 0.;
+        r3ReductionArray[0][2] = 0.;
+    }
     real3 *atomP = sim->atoms->p;
 //#pragma omp taskwait
     //printf("number of boxes = %d\n", &sim->boxes->nLocalBoxes);
@@ -144,14 +147,17 @@ void setVcm()
                 reductionArray[iBox] += sim->species[iSpecies].mass;
                 //reductionArray[0] += sim->species[iSpecies].mass;
             }
+            //printf("finishing Vcm loop 1; in : atomP[%d](%p), out r3[%d](%p), r[%d](%p)\n",iBox, &atomP[iBox], 
+//                                                                                           iBox, &r3ReductionArray[iBox], 
+//                                                                                           iBox, &reductionArray[iBox]);
         }
     }
 //#pragma omp taskwait
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
     ompReduce(reductionArray, sim->boxes->nLocalBoxes);//NOTE: might want to combine these.
 
-#pragma omp taskwait
-//#pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vZero[0])
+//#pragma omp taskwait
+#pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vZero[0])
     {
         real_t v3 = reductionArray[0]; 
         vZero[0] -= r3ReductionArray[0][0]/v3;
@@ -160,7 +166,8 @@ void setVcm()
     }
 
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-//#pragma omp task depend(inout: atomP[iBox][0]) depend( in: vZero[0])
+#pragma omp task depend(inout: atomP[iBox]) depend( in: vZero[0])
+        {
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iSpecies = sim->atoms->iSpecies[iOff];
             real_t mass = sim->species[iSpecies].mass;
@@ -168,6 +175,8 @@ void setVcm()
             sim->atoms->p[iOff][0] += mass * vZero[0];
             sim->atoms->p[iOff][1] += mass * vZero[1];
             sim->atoms->p[iOff][2] += mass * vZero[2];
+        }
+            //printf("finishing Vcm loop 2; in : atomP[%d](%p)\n", iBox, &atomP[iBox]);
         }
     }
 }
@@ -177,7 +186,8 @@ void setTemperature(real_t temperature)
     // set initial velocities for the distribution
     real3 *atomP = sim->atoms->p;
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task firstprivate(iBox) depend(out: atomP[iBox][0])
+#pragma omp task firstprivate(iBox) depend(out: atomP[iBox])
+        {
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iType = sim->atoms->iSpecies[iOff];
             real_t mass = sim->species[iType].mass;
@@ -187,19 +197,24 @@ void setTemperature(real_t temperature)
             sim->atoms->p[iOff][1] = mass * sigma * gasdev(&seed);
             sim->atoms->p[iOff][2] = mass * sigma * gasdev(&seed);
         }
+        //printf("setTemp finished - out: atomP[%d](%p)\n", iBox, &atomP[iBox]);
+        }
     }
     if (temperature == 0.0)
         return;
+    //printf("entering setVcm\n");
 //#pragma omp taskwait
     setVcm();//atomP inout -> reduction -> atomP inout
 //#pragma omp taskwait
     kineticEnergy(sim);//atomP reduced into ePotential
+    //printf("returning from KE\n");
 #pragma omp taskwait
+    //printf("after TW\n");
     
     real_t temp = (sim->eKinetic/sim->atoms->nGlobal)/kB_eV/1.5;
     real_t scaleFactor = sqrt(temperature/temp);
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-//#pragma omp task depend(inout: atomP[iBox][0])
+//#pragma omp task depend(inout: atomP[iBox])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             sim->atoms->p[iOff][0] *= scaleFactor;
             sim->atoms->p[iOff][1] *= scaleFactor;
