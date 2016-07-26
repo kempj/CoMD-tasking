@@ -290,9 +290,34 @@ void updateLinkCells(LinkCell* boxes, Atoms* atoms)
 
     //can't only copy atoms, as it might exceede the MAXATOMS limit.
     //TODO: traverse the blocks, and create tasks that don't overlap, and take 27 dependencies?
+    
+    //This assumes that atoms won't move more that a single box over in an iteration
+    int boxNum = 0;
+    for(int offset=0; offset<3; offset++) {
+        for(int z=offset; z < boxes->gridSize[2]; z+=3) {
+            for(int y=offset; y < boxes->gridSize[1]; y+=3) {
+                for(int x=offset; x < boxes->gridSize[0]; x+=3) {
+                    boxNum = getBoxFromTuple(boxes, x, y, z);
+//#pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS], atomF[iBox*MAXATOMS], atomU[iBox*MAXATOMS] )
+                    {
+                        int iOff = boxNum*MAXATOMS;
+                        int ii=0;
+                        while (ii < boxes->nAtoms[boxNum]) {
+                            int newBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
+                            if (newBox != boxNum)
+                                moveAtom(boxes, atoms, ii, boxNum, newBox);
+                            else
+                                ++ii;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /*
     for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox)
     {
-        //This still required a taskwait
 //#pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS], atomF[iBox*MAXATOMS], atomU[iBox*MAXATOMS] )
         {
             int iOff = iBox*MAXATOMS;
@@ -306,6 +331,7 @@ void updateLinkCells(LinkCell* boxes, Atoms* atoms)
             }
         }
     }
+    */
 }
 
 /// \return The largest number of atoms in any link cell.
