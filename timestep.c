@@ -146,9 +146,9 @@ void kineticEnergy(SimFlat* s)
 void redistributeAtoms(SimFlat* sim)
 {
     //This involves a copy of each atom that has moved from one cell to it's neighbor
-//#pragma omp taskwait
+#pragma omp taskwait
     updateLinkCells(sim->boxes, sim->atoms);
-//#pragma omp taskwait
+#pragma omp taskwait
 
     startTimer(atomHaloTimer);
     //I don't think this does anything if there is no MPI

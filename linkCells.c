@@ -287,7 +287,7 @@ void moveAtom(LinkCell* boxes, Atoms* atoms, int iId, int iBox, int jBox)
 void updateLinkCells(LinkCell* boxes, Atoms* atoms)
 {
     emptyHaloCells(boxes);
-
+/*
     real3  *atomP = atoms->p;
     real3  *atomF = atoms->f;
     real3  *atomR = atoms->r;
@@ -362,7 +362,7 @@ void updateLinkCells(LinkCell* boxes, Atoms* atoms)
         }
     }
 
-    /*
+    */
     for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox)
     {
 //#pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS], atomF[iBox*MAXATOMS], atomU[iBox*MAXATOMS] )
@@ -378,7 +378,6 @@ void updateLinkCells(LinkCell* boxes, Atoms* atoms)
             }
         }
     }
-    */
 }
 
 /// \return The largest number of atoms in any link cell.
