@@ -287,95 +287,31 @@ void moveAtom(LinkCell* boxes, Atoms* atoms, int iId, int iBox, int jBox)
 void updateLinkCells(LinkCell* boxes, Atoms* atoms)
 {
     emptyHaloCells(boxes);
-/*
+
     real3  *atomP = atoms->p;
     real3  *atomF = atoms->f;
     real3  *atomR = atoms->r;
     real_t *atomU = atoms->U;
-
-    int neighbors[27];
-
-    //can't only copy atoms, as it might exceede the MAXATOMS limit.
-    //TODO: traverse the blocks, and create tasks that don't overlap, and take 27 dependencies?
-    
-    //This assumes that atoms won't move more that a single box over in an iteration
-    int boxNum = 0;
-    for(int offset=0; offset<3; offset++) {
-        for(int z=offset; z < boxes->gridSize[2]; z+=3) {
-            for(int y=offset; y < boxes->gridSize[1]; y+=3) {
-                for(int x=offset; x < boxes->gridSize[0]; x+=3) {
-                    boxNum = getBoxFromTuple(boxes, x, y, z);
-                    for(int nBox=0; nBox < 27; nBox++) {
-                        neighbors[nBox] =  boxes->nbrBoxes[boxNum][nBox];
-                    }
-//#pragma omp task depend(inout: atomP[boxNum*MAXATOMS], atomR[boxNum*MAXATOMS], atomF[boxNum*MAXATOMS], atomU[boxNum*MAXATOMS] )
-
-#pragma omp task depend(inout: atomR[neighbors[0 ]*MAXATOMS], atomR[neighbors[1 ]*MAXATOMS], atomR[neighbors[2 ]*MAXATOMS], \
-                               atomR[neighbors[3 ]*MAXATOMS], atomR[neighbors[4 ]*MAXATOMS], atomR[neighbors[5 ]*MAXATOMS], \
-                               atomR[neighbors[6 ]*MAXATOMS], atomR[neighbors[7 ]*MAXATOMS], atomR[neighbors[8 ]*MAXATOMS], \
-                               atomR[neighbors[9 ]*MAXATOMS], atomR[neighbors[10]*MAXATOMS], atomR[neighbors[11]*MAXATOMS], \
-                               atomR[neighbors[12]*MAXATOMS], atomR[neighbors[13]*MAXATOMS], atomR[neighbors[14]*MAXATOMS], \
-                               atomR[neighbors[15]*MAXATOMS], atomR[neighbors[16]*MAXATOMS], atomR[neighbors[17]*MAXATOMS], \
-                               atomR[neighbors[18]*MAXATOMS], atomR[neighbors[19]*MAXATOMS], atomR[neighbors[20]*MAXATOMS], \
-                               atomR[neighbors[21]*MAXATOMS], atomR[neighbors[22]*MAXATOMS], atomR[neighbors[23]*MAXATOMS], \
-                               atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS], \
-                               atomP[neighbors[0 ]*MAXATOMS], atomP[neighbors[1 ]*MAXATOMS], atomP[neighbors[2 ]*MAXATOMS], \
-                               atomP[neighbors[3 ]*MAXATOMS], atomP[neighbors[4 ]*MAXATOMS], atomP[neighbors[5 ]*MAXATOMS], \
-                               atomP[neighbors[6 ]*MAXATOMS], atomP[neighbors[7 ]*MAXATOMS], atomP[neighbors[8 ]*MAXATOMS], \
-                               atomP[neighbors[9 ]*MAXATOMS], atomP[neighbors[10]*MAXATOMS], atomP[neighbors[11]*MAXATOMS], \
-                               atomP[neighbors[12]*MAXATOMS], atomP[neighbors[13]*MAXATOMS], atomP[neighbors[14]*MAXATOMS], \
-                               atomP[neighbors[15]*MAXATOMS], atomP[neighbors[16]*MAXATOMS], atomP[neighbors[17]*MAXATOMS], \
-                               atomP[neighbors[18]*MAXATOMS], atomP[neighbors[19]*MAXATOMS], atomP[neighbors[20]*MAXATOMS], \
-                               atomP[neighbors[21]*MAXATOMS], atomP[neighbors[22]*MAXATOMS], atomP[neighbors[23]*MAXATOMS], \
-                               atomP[neighbors[24]*MAXATOMS], atomP[neighbors[25]*MAXATOMS], atomP[neighbors[26]*MAXATOMS], \
-                               atomF[neighbors[0 ]*MAXATOMS], atomF[neighbors[1 ]*MAXATOMS], atomF[neighbors[2 ]*MAXATOMS], \
-                               atomF[neighbors[3 ]*MAXATOMS], atomF[neighbors[4 ]*MAXATOMS], atomF[neighbors[5 ]*MAXATOMS], \
-                               atomF[neighbors[6 ]*MAXATOMS], atomF[neighbors[7 ]*MAXATOMS], atomF[neighbors[8 ]*MAXATOMS], \
-                               atomF[neighbors[9 ]*MAXATOMS], atomF[neighbors[10]*MAXATOMS], atomF[neighbors[11]*MAXATOMS], \
-                               atomF[neighbors[12]*MAXATOMS], atomF[neighbors[13]*MAXATOMS], atomF[neighbors[14]*MAXATOMS], \
-                               atomF[neighbors[15]*MAXATOMS], atomF[neighbors[16]*MAXATOMS], atomF[neighbors[17]*MAXATOMS], \
-                               atomF[neighbors[18]*MAXATOMS], atomF[neighbors[19]*MAXATOMS], atomF[neighbors[20]*MAXATOMS], \
-                               atomF[neighbors[21]*MAXATOMS], atomF[neighbors[22]*MAXATOMS], atomF[neighbors[23]*MAXATOMS], \
-                               atomF[neighbors[24]*MAXATOMS], atomF[neighbors[25]*MAXATOMS], atomF[neighbors[26]*MAXATOMS], \
-                               atomU[neighbors[0 ]*MAXATOMS], atomU[neighbors[1 ]*MAXATOMS], atomU[neighbors[2 ]*MAXATOMS], \
-                               atomU[neighbors[3 ]*MAXATOMS], atomU[neighbors[4 ]*MAXATOMS], atomU[neighbors[5 ]*MAXATOMS], \
-                               atomU[neighbors[6 ]*MAXATOMS], atomU[neighbors[7 ]*MAXATOMS], atomU[neighbors[8 ]*MAXATOMS], \
-                               atomU[neighbors[9 ]*MAXATOMS], atomU[neighbors[10]*MAXATOMS], atomU[neighbors[11]*MAXATOMS], \
-                               atomU[neighbors[12]*MAXATOMS], atomU[neighbors[13]*MAXATOMS], atomU[neighbors[14]*MAXATOMS], \
-                               atomU[neighbors[15]*MAXATOMS], atomU[neighbors[16]*MAXATOMS], atomU[neighbors[17]*MAXATOMS], \
-                               atomU[neighbors[18]*MAXATOMS], atomU[neighbors[19]*MAXATOMS], atomU[neighbors[20]*MAXATOMS], \
-                               atomU[neighbors[21]*MAXATOMS], atomU[neighbors[22]*MAXATOMS], atomU[neighbors[23]*MAXATOMS], \
-                               atomU[neighbors[24]*MAXATOMS], atomU[neighbors[25]*MAXATOMS], atomU[neighbors[26]*MAXATOMS] )
-                    {
-                        int iOff = boxNum*MAXATOMS;
-                        int ii=0;
-                        while (ii < boxes->nAtoms[boxNum]) {
-                            int newBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
-                            if (newBox != boxNum)
-                                moveAtom(boxes, atoms, ii, boxNum, newBox);
-                            else
-                                ++ii;
-                        }
-                    }
-                }
+    int moveTo[MAXATOMS];
+    int atomNbr[MAXATOMS];
+    int moveCount;
+    for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
+        moveCount=0;
+        int iOff = iBox*MAXATOMS;
+        for(int ii=0; ii < boxes->nAtoms[iBox]; ii++) {
+            int jBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
+            if (jBox != iBox) {
+                moveTo[moveCount] = jBox;
+                atomNbr[moveCount] = ii;
+                moveCount++;
             }
         }
-    }
-
-    */
-    for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox)
-    {
-//#pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS], atomF[iBox*MAXATOMS], atomU[iBox*MAXATOMS] )
-        {
-            int iOff = iBox*MAXATOMS;
-            int ii=0;
-            while (ii < boxes->nAtoms[iBox]) {
-                int jBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
-                if (jBox != iBox)
-                    moveAtom(boxes, atoms, ii, iBox, jBox);
-                else
-                    ++ii;
-            }
+        for(int ii=moveCount-1; ii>0; ii--) {
+            //TODO: I should add something here to synchronize with other atom movement functions.
+#pragma omp task depend(inout: \
+                               atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS], atomF[iBox*MAXATOMS], atomU[iBox*MAXATOMS],\
+                               atomP[moveTo[ii]*MAXATOMS], atomR[moveTo[ii]*MAXATOMS], atomF[moveTo[ii]*MAXATOMS], atomU[moveTo[ii]*MAXATOMS] )
+            moveAtom(boxes, atoms, atomNbr[ii], iBox, moveTo[ii]);
         }
     }
 }
