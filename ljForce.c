@@ -196,8 +196,6 @@ int ljForce(SimFlat* s)
     real3  *atomR = s->atoms->r;
     real_t *atomU = s->atoms->U;
     int neighbors[27];
-#pragma omp task depend(inout: reductionArray[0])
-    reductionArray[0] = 0.;
 
     for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
         for(int nBox=0; nBox < 27; nBox++) {

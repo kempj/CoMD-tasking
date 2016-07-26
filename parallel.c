@@ -24,6 +24,11 @@ static int nRanks = 1;
 
 void ompReduceStride(double *depArray, int arraySize, int depStride)
 {
+#pragma omp task depend(inout:depArray[0])
+    for(int j=0; j < depStride; j++) {
+        depArray[j] = 0.;
+    }
+
     int reductionStride = 16*depStride;
     int innerStride = depStride;
     while( innerStride < arraySize ) { 

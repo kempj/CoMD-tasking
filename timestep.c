@@ -34,17 +34,18 @@ extern double globalEnergy;
 /// After nSteps the kinetic energy is computed for diagnostic output.
 double timestep(SimFlat* s, int nSteps, real_t dt)
 {
+    /*
 #pragma omp parallel 
     {
 #pragma omp single
-    {
+    {*/
     for (int ii=0; ii<nSteps; ++ii) {
         startTimer(velocityTimer);
         advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); 
         stopTimer(velocityTimer);
 
         startTimer(positionTimer);
-        advancePosition(s, s->boxes->nLocalBoxes, dt); // in P, out R
+        advancePosition(s, s->boxes->nLocalBoxes, dt);
         stopTimer(positionTimer);
 
         startTimer(redistributeTimer);
@@ -61,7 +62,7 @@ double timestep(SimFlat* s, int nSteps, real_t dt)
 
         kineticEnergy(s);
     }
-    }}
+//    }}
 
     return s->ePotential;
 }
@@ -108,8 +109,6 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 /// local potential energy is a by-product of the force routine.
 void kineticEnergy(SimFlat* s)
 {
-#pragma omp task depend(inout: reductionArray[0])
-    reductionArray[0] = 0.;
 
     real3  *atomP = s->atoms->p;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
@@ -151,7 +150,6 @@ void redistributeAtoms(SimFlat* sim)
 #pragma omp taskwait
 
     startTimer(atomHaloTimer);
-    //I don't think this does anything if there is no MPI
     haloExchange(sim->atomExchange, sim);
     stopTimer(atomHaloTimer);
 

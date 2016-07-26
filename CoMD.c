@@ -105,11 +105,16 @@ int main(int argc, char** argv)
     printCmdYaml(yamlFile, &cmd);
     printCmdYaml(screenOut, &cmd);
 
-    SimFlat* sim = initSimulation(cmd);//has parallel region
+#pragma omp parallel 
+    {
+#pragma omp single
+    {
+    SimFlat* sim = initSimulation(cmd);
     printSimulationDataYaml(yamlFile, sim);
     printSimulationDataYaml(screenOut, sim);
 
-    Validate* validate = initValidate(sim); // atom counts, energy
+#pragma omp taskwait
+    Validate* validate = initValidate(sim);
     timestampBarrier("Initialization Finished\n");
 
     timestampBarrier("Starting simulation\n");
@@ -137,6 +142,7 @@ int main(int argc, char** argv)
 
     sumAtoms(sim);
     printThings(sim, iStep, getElapsedTime(timestepTimer));
+#pragma omp taskwait
     timestampBarrier("Ending simulation\n");
 
     // Epilog
@@ -151,6 +157,7 @@ int main(int argc, char** argv)
     finalizeSubsystems();
 
     timestampBarrier("CoMD Ending\n");
+    }}
     destroyParallel();
 
     return 0;
@@ -207,11 +214,12 @@ SimFlat* initSimulation(Command cmd)
     reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
     r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(real3));
 
+    /*
 #pragma omp parallel 
     {
 #pragma omp single
     {
-
+*/
         setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
         randomDisplacements(cmd.initialDelta);//inout atomR
 
@@ -219,15 +227,15 @@ SimFlat* initSimulation(Command cmd)
 
         // Forces must be computed before we call the time stepper.
         startTimer(redistributeTimer);
-        redistributeAtoms(sim);//inout: atomP atomR
+        redistributeAtoms(sim);
         stopTimer(redistributeTimer);
 
         startTimer(computeForceTimer);
-        computeForce(sim);//in atomR
+        computeForce(sim);
         stopTimer(computeForceTimer);
 
-        kineticEnergy(sim);//in: atomP, out: ePotential; reduction
-    }}
+        kineticEnergy(sim);
+//    }}
 
 
     return sim;
