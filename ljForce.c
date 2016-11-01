@@ -178,7 +178,6 @@ void boxForce(int iBox, SimFlat *s)
                     real_t eLocal = r6 * (r6 - 1.0) - eShift;
                     s->atoms->U[iOff] += 0.5*eLocal;
                     reductionArray[iBox] += 0.5*eLocal;
-                    //reductionArray[0] += 0.5*eLocal;
 
                     real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
                     for (int m=0; m<3; m++) {
@@ -197,7 +196,64 @@ int ljForce(SimFlat* s)
     real_t *atomU = s->atoms->U;
     int neighbors[27];
 
+    //printf("numBoxes = %d, %d x %d x %d\n",s->boxes->nLocalBoxes, s->boxes->gridSize[0], s->boxes->gridSize[1], s->boxes->gridSize[2]);
     for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
+        //int sizeX = s->boxes->gridSize[0];
+        //int sizeY = s->boxes->gridSize[1];
+        //printf("traversing boxes: %d, %d, %d\n", iBox/(sizeX*sizeY), (iBox/sizeX)%(sizeY), iBox%sizeX);
+        for(int nBox=0; nBox < 27; nBox++) {
+            neighbors[nBox] =  s->boxes->nbrBoxes[iBox][nBox];
+            if(iBox == 0){
+                //printf("neighbor %d is %d\n", nBox, neighbors[nBox]);
+            }
+        }
+#pragma omp task depend(out: atomU[iBox*MAXATOMS], reductionArray[iBox], atomF[iBox*MAXATOMS]) \
+                 depend( in: atomR[neighbors[0 ]*MAXATOMS], atomR[neighbors[1 ]*MAXATOMS], atomR[neighbors[2 ]*MAXATOMS], \
+                             atomR[neighbors[3 ]*MAXATOMS], atomR[neighbors[4 ]*MAXATOMS], atomR[neighbors[5 ]*MAXATOMS], \
+                             atomR[neighbors[6 ]*MAXATOMS], atomR[neighbors[7 ]*MAXATOMS], atomR[neighbors[8 ]*MAXATOMS], \
+                             atomR[neighbors[9 ]*MAXATOMS], atomR[neighbors[10]*MAXATOMS], atomR[neighbors[11]*MAXATOMS], \
+                             atomR[neighbors[12]*MAXATOMS], atomR[neighbors[13]*MAXATOMS], atomR[neighbors[14]*MAXATOMS], \
+                             atomR[neighbors[15]*MAXATOMS], atomR[neighbors[16]*MAXATOMS], atomR[neighbors[17]*MAXATOMS], \
+                             atomR[neighbors[18]*MAXATOMS], atomR[neighbors[19]*MAXATOMS], atomR[neighbors[20]*MAXATOMS], \
+                             atomR[neighbors[21]*MAXATOMS], atomR[neighbors[22]*MAXATOMS], atomR[neighbors[23]*MAXATOMS], \
+                             atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
+        {
+            for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
+                zeroReal3(s->atoms->f[ii]);
+                s->atoms->U[ii] = 0.;
+            }
+            boxForce(iBox, s);
+        }
+    }
+    //The original zeroes out all blocks, not sure if it's necessary.
+    for (int iBox=s->boxes->nLocalBoxes; iBox < s->boxes->nTotalBoxes; iBox++) {
+#pragma omp task depend(inout: atomU[iBox*MAXATOMS], atomF[iBox*MAXATOMS])
+        for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
+            zeroReal3(s->atoms->f[ii]);
+            s->atoms->U[ii] = 0.;
+        }
+    }
+    ompReduce(reductionArray, s->boxes->nTotalBoxes);
+
+    real_t *ePotential = &(s->ePotential);
+#pragma omp task depend(in: reductionArray[0]) depend(out: ePotential[0])
+    *ePotential = reductionArray[0]*4.0*((LjPotential*)(s->pot))->epsilon;
+
+    return 0;
+}
+
+int ljForceBlocked(SimFlat *s)
+{
+    real3  *atomF = s->atoms->f;
+    real3  *atomR = s->atoms->r;
+    real_t *atomU = s->atoms->U;
+    int neighbors[27];
+    int blockSize = 2;
+
+    for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox+=blockSize) {
+        int sizeX = s->boxes->gridSize[0];
+        int sizeY = s->boxes->gridSize[1];
+        printf("traversing boxes: %d, %d, %d\n", iBox/(sizeX*sizeY), iBox/sizeX, iBox%sizeX);
         for(int nBox=0; nBox < 27; nBox++) {
             neighbors[nBox] =  s->boxes->nbrBoxes[iBox][nBox];
         }
@@ -216,10 +272,10 @@ int ljForce(SimFlat* s)
                 zeroReal3(s->atoms->f[ii]);
                 s->atoms->U[ii] = 0.;
             }
-            //reductionArray[iBox] = 0.;// shouldn't be necessary
             boxForce(iBox, s);
         }
     }
+    //The original zeroes out all blocks, not sure if it's necessary.
     for (int iBox=s->boxes->nLocalBoxes; iBox < s->boxes->nTotalBoxes; iBox++) {
 #pragma omp task depend(inout: atomU[iBox*MAXATOMS], atomF[iBox*MAXATOMS])
         for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {

@@ -29,12 +29,14 @@ void ompReduceStride(double *depArray, int arraySize, int depStride)
         depArray[j] = 0.;
     }
 
+    //FIXME: at the end of the reduction array, the dependencies could depend on an any variables
+    //immediately after the array in memory.
     int reductionStride = 16*depStride;
     int innerStride = depStride;
     while( innerStride < arraySize ) { 
         for(int boxNum=0; boxNum < arraySize; boxNum +=reductionStride) {
 #pragma omp task depend(inout: depArray[boxNum]) \
-                 depend(in   : depArray[boxNum +  innerStride],\
+                 depend(in   : depArray[boxNum+   innerStride],\
                                depArray[boxNum+2 *innerStride], depArray[boxNum+3 *innerStride],\
                                depArray[boxNum+4 *innerStride], depArray[boxNum+5 *innerStride],\
                                depArray[boxNum+6 *innerStride], depArray[boxNum+7 *innerStride],\
@@ -44,7 +46,8 @@ void ompReduceStride(double *depArray, int arraySize, int depStride)
                                depArray[boxNum+14*innerStride], depArray[boxNum+15*innerStride])
             for(int i=boxNum+innerStride; i<(boxNum+reductionStride) && i<arraySize; i += innerStride) {
                 for(int j=0; j<depStride; j++) {
-                    depArray[boxNum] += depArray[i+j];
+                    //depArray[boxNum] += depArray[i+j];
+                    depArray[boxNum+j] += depArray[i+j];
                     depArray[i+j] = 0.;
                 }
             }

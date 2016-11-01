@@ -151,9 +151,9 @@ void redistributeAtoms(SimFlat* sim)
     haloExchange(sim->atomExchange, sim);
     stopTimer(atomHaloTimer);
 
-    real3  *atomP = sim->atoms->p;
-    real3  *atomR = sim->atoms->r;
-    for (int iBox=0; iBox<sim->boxes->nTotalBoxes; ++iBox) {
+    real3 *atomP = sim->atoms->p;
+    real3 *atomR = sim->atoms->r;
+    for(int iBox=0; iBox<sim->boxes->nTotalBoxes; ++iBox) {
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS])
         sortAtomsInCell(sim->atoms, sim->boxes, iBox);
     }

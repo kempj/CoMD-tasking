@@ -284,6 +284,26 @@ void moveAtom(LinkCell* boxes, Atoms* atoms, int iId, int iBox, int jBox)
 /// to halo atoms.  Such atom must be sent to other tasks by a halo
 /// exchange to avoid being lost.
 /// \see redistributeAtoms
+void updateLinkCellsOld(LinkCell* boxes, Atoms* atoms)
+{
+    emptyHaloCells(boxes);
+
+    for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox)
+    {
+        int iOff = iBox*MAXATOMS;
+        int ii=0;
+        while (ii < boxes->nAtoms[iBox])
+        {
+            int jBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
+            if (jBox != iBox)
+                moveAtom(boxes, atoms, ii, iBox, jBox);
+            else
+                ++ii;
+        }
+    }
+}
+
+
 void updateLinkCells(LinkCell* boxes, Atoms* atoms)
 {
     emptyHaloCells(boxes);
@@ -306,6 +326,9 @@ void updateLinkCells(LinkCell* boxes, Atoms* atoms)
                 moveCount++;
             }
         }
+        //This needs to decrement, in the case where multiple atoms leave a box, and the list gets
+        //shorter. Only the tasks created will be appending to other nodes to be read by this
+        //function.
         for(int ii=moveCount-1; ii>0; ii--) {
             //TODO: I should add something here to synchronize with other atom movement functions.
 #pragma omp task depend(inout: \
@@ -369,24 +392,21 @@ int getBoxFromCoord(LinkCell* boxes, real_t rr[3])
 
     // For each axis, if we are inside the local domain, make sure we get
     // a local link cell.  Otherwise, make sure we get a halo link cell.
-    if (rr[0] < localMax[0]) 
-    {
+    if(rr[0] < localMax[0]) {
         if (ix == gridSize[0]) ix = gridSize[0] - 1;
-    }
-    else
+    } else {
         ix = gridSize[0]; // assign to halo cell
-    if (rr[1] < localMax[1])
-    {
+    }
+    if(rr[1] < localMax[1]) {
         if (iy == gridSize[1]) iy = gridSize[1] - 1;
-    }
-    else
+    } else {
         iy = gridSize[1];
-    if (rr[2] < localMax[2])
-    {
-        if (iz == gridSize[2]) iz = gridSize[2] - 1;
     }
-    else
+    if(rr[2] < localMax[2]) {
+        if (iz == gridSize[2]) iz = gridSize[2] - 1;
+    } else {
         iz = gridSize[2];
+    }
 
     return getBoxFromTuple(boxes, ix, iy, iz);
 }
@@ -409,66 +429,46 @@ void emptyHaloCells(LinkCell* boxes)
 void getTuple(LinkCell* boxes, int iBox, int* ixp, int* iyp, int* izp)
 {
     int ix, iy, iz;
-    const int* gridSize = boxes->gridSize; // alias
+    const int* gridSize = boxes->gridSize;
 
     // If a local box
-    if( iBox < boxes->nLocalBoxes)
-    {
+    if( iBox < boxes->nLocalBoxes) {
         ix = iBox % gridSize[0];
         iBox /= gridSize[0];
         iy = iBox % gridSize[1];
         iz = iBox / gridSize[1];
-    }
-    // It's a halo box
-    else 
-    {
-        int ink;
-        ink = iBox - boxes->nLocalBoxes;
-        if (ink < 2*gridSize[1]*gridSize[2])
-        {
-            if (ink < gridSize[1]*gridSize[2]) 
-            {
+    } else {  // It's a halo box
+        int ink = iBox - boxes->nLocalBoxes;
+        if(ink < 2*gridSize[1]*gridSize[2]) {
+            if (ink < gridSize[1]*gridSize[2]) {
                 ix = 0;
-            }
-            else 
-            {
+            } else {
                 ink -= gridSize[1]*gridSize[2];
                 ix = gridSize[0] + 1;
             }
             iy = 1 + ink % gridSize[1];
             iz = 1 + ink / gridSize[1];
-        }
-        else if (ink < (2 * gridSize[2] * (gridSize[1] + gridSize[0] + 2))) 
-        {
+        } else if (ink < (2 * gridSize[2] * (gridSize[1] + gridSize[0] + 2))) {
             ink -= 2 * gridSize[2] * gridSize[1];
-            if (ink < ((gridSize[0] + 2) *gridSize[2])) 
-            {
+            if (ink < ((gridSize[0] + 2) *gridSize[2])) {
                 iy = 0;
-            }
-            else 
-            {
+            } else {
                 ink -= (gridSize[0] + 2) * gridSize[2];
                 iy = gridSize[1] + 1;
             }
             ix = ink % (gridSize[0] + 2);
             iz = 1 + ink / (gridSize[0] + 2);
-        }
-        else 
-        {
+        } else {
             ink -= 2 * gridSize[2] * (gridSize[1] + gridSize[0] + 2);
-            if (ink < ((gridSize[0] + 2) * (gridSize[1] + 2))) 
-            {
+            if (ink < ((gridSize[0] + 2) * (gridSize[1] + 2))) {
                 iz = 0;
-            }
-            else 
-            {
+            } else {
                 ink -= (gridSize[0] + 2) * (gridSize[1] + 2);
                 iz = gridSize[2] + 1;
             }
             ix = ink % (gridSize[0] + 2);
             iy = ink / (gridSize[0] + 2);
         }
-
         // Calculated as off by 1
         ix--;
         iy--;

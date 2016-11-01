@@ -214,12 +214,9 @@ SimFlat* initSimulation(Command cmd)
     reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
     r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(real3));
 
-    /*
-#pragma omp parallel 
-    {
+/*#pragma omp parallel 
 #pragma omp single
-    {
-*/
+{*/
         setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
         randomDisplacements(cmd.initialDelta);//inout atomR
 
