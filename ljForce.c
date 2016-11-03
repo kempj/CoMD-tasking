@@ -196,16 +196,12 @@ int ljForce(SimFlat* s)
     real_t *atomU = s->atoms->U;
     int neighbors[27];
 
-    //printf("numBoxes = %d, %d x %d x %d\n",s->boxes->nLocalBoxes, s->boxes->gridSize[0], s->boxes->gridSize[1], s->boxes->gridSize[2]);
+#pragma omp task depend(inout: reductionArray[0])
+    reductionArray[0] = 0.;
+
     for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
-        //int sizeX = s->boxes->gridSize[0];
-        //int sizeY = s->boxes->gridSize[1];
-        //printf("traversing boxes: %d, %d, %d\n", iBox/(sizeX*sizeY), (iBox/sizeX)%(sizeY), iBox%sizeX);
         for(int nBox=0; nBox < 27; nBox++) {
             neighbors[nBox] =  s->boxes->nbrBoxes[iBox][nBox];
-            if(iBox == 0){
-                //printf("neighbor %d is %d\n", nBox, neighbors[nBox]);
-            }
         }
 #pragma omp task depend(out: atomU[iBox*MAXATOMS], reductionArray[iBox], atomF[iBox*MAXATOMS]) \
                  depend( in: atomR[neighbors[0 ]*MAXATOMS], atomR[neighbors[1 ]*MAXATOMS], atomR[neighbors[2 ]*MAXATOMS], \
