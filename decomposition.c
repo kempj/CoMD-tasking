@@ -31,8 +31,7 @@ Domain* initDecomposition(int xproc, int yproc, int zproc, real3 globalExtent)
    dd->procCoord[2] = myRank / dd->procGrid[1];
 
    // initialialize global bounds
-   for (int i = 0; i < 3; i++)
-   {
+   for (int i = 0; i < 3; i++) {
       dd->globalMin[i] = 0;
       dd->globalMax[i] = globalExtent[i];
       dd->globalExtent[i] = dd->globalMax[i] - dd->globalMin[i];

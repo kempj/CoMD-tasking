@@ -15,22 +15,17 @@
 #include "memUtils.h"
 #include "performanceTimers.h"
 
-//static void computeVcm(SimFlat* s, real_t vcm[3]);
 
 extern struct SimFlatSt* sim;
 extern real3 *r3ReductionArray;
 double *reductionArray;
 
-real_t vZero[3] = {0., 0., 0.};
+real_t vInit[3] = {0., 0., 0.};
 
 
-/// \details
-/// Call functions such as createFccLattice and setTemperature to set up
-/// initial atom positions and momenta.
 Atoms* initAtoms(LinkCell* boxes)
 {
     Atoms* atoms = comdMalloc(sizeof(Atoms));
-
     int maxTotalAtoms = MAXATOMS*boxes->nTotalBoxes;
 
     atoms->gid =      (int*)   comdMalloc(maxTotalAtoms*sizeof(int));
@@ -43,8 +38,7 @@ Atoms* initAtoms(LinkCell* boxes)
     atoms->nLocal = 0;
     atoms->nGlobal = 0;
 
-    for (int iOff = 0; iOff < maxTotalAtoms; iOff++)
-    {
+    for (int iOff = 0; iOff < maxTotalAtoms; iOff++) {
         atoms->gid[iOff] = 0;
         atoms->iSpecies[iOff] = 0;
         zeroReal3(atoms->r[iOff]);
@@ -143,25 +137,25 @@ void setVcm()
         }
     }
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
-    ompReduce(reductionArray, sim->boxes->nLocalBoxes);//NOTE: might want to combine these.
+    ompReduce(reductionArray, sim->boxes->nLocalBoxes);
 
-#pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vZero[0])
+#pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vInit[0])
     {
         real_t v3 = reductionArray[0]; 
-        vZero[0] -= r3ReductionArray[0][0]/v3;
-        vZero[1] -= r3ReductionArray[0][1]/v3;
-        vZero[2] -= r3ReductionArray[0][2]/v3;
+        vInit[0] -= r3ReductionArray[0][0]/v3;
+        vInit[1] -= r3ReductionArray[0][1]/v3;
+        vInit[2] -= r3ReductionArray[0][2]/v3;
     }
 
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend( in: vZero[0])
+#pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend( in: vInit[0])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iSpecies = sim->atoms->iSpecies[iOff];
             real_t mass = sim->species[iSpecies].mass;
 
-            sim->atoms->p[iOff][0] += mass * vZero[0];
-            sim->atoms->p[iOff][1] += mass * vZero[1];
-            sim->atoms->p[iOff][2] += mass * vZero[2];
+            sim->atoms->p[iOff][0] += mass * vInit[0];
+            sim->atoms->p[iOff][1] += mass * vInit[1];
+            sim->atoms->p[iOff][2] += mass * vInit[2];
         }
     }
 }
@@ -210,8 +204,10 @@ void setTemperature(real_t temperature)
 void randomDisplacements(real_t delta)
 {
     real3 *atomR = sim->atoms->r;
+    real3 *atomP = sim->atoms->p; //AtomP used so setTemp is done before this begins.
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(inout: atomR[iBox*MAXATOMS][0])
+#pragma omp task depend(inout: atomR[iBox*MAXATOMS][0]) \
+                 depend(in   : atomP[iBox*MAXATOMS])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             uint64_t seed = mkSeed(sim->atoms->gid[iOff], 457);
             sim->atoms->r[iOff][0] += (2.0*lcg61(&seed)-1.0) * delta;

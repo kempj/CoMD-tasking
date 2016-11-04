@@ -70,6 +70,7 @@ typedef struct SimFlatSt
    LinkCell* boxes;       //<! link-cell data
 
    Atoms* atoms;          //<! atom data (positions, momenta, ...)
+   Atoms* localBuffer;    //<! buffer to synchronize task dependency version.
 
    SpeciesData* species;  //<! species data (per species, not per atom)
    

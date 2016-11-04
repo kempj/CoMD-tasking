@@ -189,10 +189,10 @@ SimFlat* initSimulation(Command cmd)
 
     sim->pot = initPotential(cmd.doeam, cmd.potDir, cmd.potName, cmd.potType);
     real_t latticeConstant = cmd.lat;
-    if (cmd.lat < 0.0)
+    if (cmd.lat < 0.0) {
         latticeConstant = sim->pot->lat;
+    }
 
-    // ensure input parameters make sense.
     sanityChecks(cmd, sim->pot->cutoff, latticeConstant, sim->pot->latticeType);
 
     sim->species = initSpecies(sim->pot);
@@ -207,33 +207,27 @@ SimFlat* initSimulation(Command cmd)
 
     sim->boxes = initLinkCells(sim->domain, sim->pot->cutoff);
     sim->atoms = initAtoms(sim->boxes);
+    sim->localBuffer = initAtoms(sim->boxes);
 
-    // create lattice with desired temperature and displacement.
     createFccLattice(cmd.nx, cmd.ny, cmd.nz, latticeConstant, sim);
 
     reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
     r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(real3));
 
-/*#pragma omp parallel 
-#pragma omp single
-{*/
-        setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
-        randomDisplacements(cmd.initialDelta);//inout atomR
+    setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
+    randomDisplacements(cmd.initialDelta);//inout atomR, in atomP
 
-        sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
+    sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
 
-        // Forces must be computed before we call the time stepper.
-        startTimer(redistributeTimer);
-        redistributeAtoms(sim);
-        stopTimer(redistributeTimer);
+    startTimer(redistributeTimer);
+    redistributeAtoms(sim);
+    stopTimer(redistributeTimer);
 
-        startTimer(computeForceTimer);
-        computeForce(sim);
-        stopTimer(computeForceTimer);
+    startTimer(computeForceTimer);
+    computeForce(sim);
+    stopTimer(computeForceTimer);
 
-        kineticEnergy(sim);
-//    }}
-
+    kineticEnergy(sim);
 
     return sim;
 }
@@ -250,6 +244,7 @@ void destroySimulation(SimFlat** ps)
     if ( pot) pot->destroy(&pot);
     destroyLinkCells(&(s->boxes));
     destroyAtoms(s->atoms);
+    destroyAtoms(s->localBuffer);
     destroyHaloExchange(&(s->atomExchange));
     comdFree(s->species);
     comdFree(s->domain);

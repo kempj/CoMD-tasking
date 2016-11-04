@@ -145,7 +145,7 @@ void kineticEnergy(SimFlat* s)
 void redistributeAtoms(SimFlat* sim)
 {
     //This involves a copy of each atom that has moved from one cell to it's neighbor
-    updateLinkCells(sim->boxes, sim->atoms);
+    updateLinkCells(sim->boxes, sim->atoms, sim->localBuffer);
 
     startTimer(atomHaloTimer);
     haloExchange(sim->atomExchange, sim);

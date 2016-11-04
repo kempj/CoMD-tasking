@@ -40,10 +40,12 @@ void putAtomInBox(LinkCell* boxes, struct AtomsSt* atoms,
                   const real_t px, const real_t py, const real_t pz);
 int getBoxFromTuple(LinkCell* boxes, int x, int y, int z);
 
-void moveAtom(LinkCell* boxes, struct AtomsSt* atoms, int iId, int iBox, int jBox);
+void moveAtom(LinkCell* boxes, struct AtomsSt* atoms, struct AtomsSt* buffer, int iId, int iBox, int jBox);
 
 /// Update link cell data structures when the atoms have moved.
-void updateLinkCells(LinkCell* boxes, struct AtomsSt* atoms);
+//void updateLinkCells(LinkCell* boxes, struct AtomsSt* atoms);
+
+void updateLinkCells(LinkCell* boxes, struct AtomsSt* atoms, struct AtomsSt* buffer);
 
 int maxOccupancy(LinkCell* boxes);
 

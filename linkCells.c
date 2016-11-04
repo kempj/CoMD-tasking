@@ -75,7 +75,7 @@
 #define   MIN(A,B) ((A) < (B) ? (A) : (B))
 #define   MAX(A,B) ((A) > (B) ? (A) : (B))
 
-static void copyAtom(LinkCell* boxes, Atoms* atoms, int iAtom, int iBox, int jAtom, int jBox);
+static void copyAtom(Atoms* in, Atoms* out, int iAtom, int iBox, int jAtom, int jBox);
 static int getBoxFromCoord(LinkCell* boxes, real_t rr[3]);
 static void emptyHaloCells(LinkCell* boxes);
 static void getTuple(LinkCell* boxes, int iBox, int* ixp, int* iyp, int* izp);
@@ -85,8 +85,7 @@ LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
     assert(domain);
     LinkCell* ll = comdMalloc(sizeof(LinkCell));
 
-    for (int i = 0; i < 3; i++)
-    {
+    for (int i = 0; i < 3; i++) {
         ll->localMin[i] = domain->localMin[i];
         ll->localMax[i] = domain->localMax[i];
         ll->gridSize[i] = domain->localExtent[i] / cutoff; // local number of boxes
@@ -103,21 +102,19 @@ LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
     ll->nTotalBoxes = ll->nLocalBoxes + ll->nHaloBoxes;
 
     ll->nAtoms = comdMalloc(ll->nTotalBoxes*sizeof(int));
-    for (int iBox=0; iBox<ll->nTotalBoxes; ++iBox)
+    for (int iBox=0; iBox<ll->nTotalBoxes; ++iBox) {
         ll->nAtoms[iBox] = 0;
+    }
 
     assert ( (ll->gridSize[0] >= 2) && (ll->gridSize[1] >= 2) && (ll->gridSize[2] >= 2) );
 
-    // Added creating neighbors once
     ll->nbrBoxes = comdMalloc(ll->nTotalBoxes*sizeof(int*));
-    for (int iBox=0; iBox<ll->nTotalBoxes; ++iBox)
-    {
+    for (int iBox=0; iBox<ll->nTotalBoxes; ++iBox) {
         ll->nbrBoxes[iBox] = comdMalloc(27*sizeof(int));
     }
 
-    for (int iBox=0; iBox<ll->nLocalBoxes; ++iBox)
-    {
-        int nNbrBoxes = getNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
+    for (int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
+        getNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
     }
 
     return ll;
@@ -253,17 +250,37 @@ int getBoxFromTuple(LinkCell* boxes, int ix, int iy, int iz)
 /// \param iId [in]  The index with box iBox of the atom to be moved.
 /// \param iBox [in] The index of the link cell the particle is moving from.
 /// \param jBox [in] The index of the link cell the particle is moving to.
-void moveAtom(LinkCell* boxes, Atoms* atoms, int iId, int iBox, int jBox)
+void moveAtomOld(LinkCell* boxes, Atoms* atoms, int iId, int iBox, int jBox)
 {
     int nj = boxes->nAtoms[jBox];
-    copyAtom(boxes, atoms, iId, iBox, nj, jBox);
+    copyAtom(atoms, atoms, iId, iBox, nj, jBox);
     boxes->nAtoms[jBox]++;
 
     assert(boxes->nAtoms[jBox] < MAXATOMS);
 
     boxes->nAtoms[iBox]--;
     int ni = boxes->nAtoms[iBox];
-    if (ni) copyAtom(boxes, atoms, ni, iBox, iId, iBox);
+    if (ni) copyAtom(atoms, atoms, ni, iBox, iId, iBox);
+
+    if (jBox > boxes->nLocalBoxes)
+        --atoms->nLocal;
+
+    return;
+}
+
+void moveAtom(LinkCell* boxes, Atoms* atoms, Atoms* buffer, int iId, int iBox, int jBox)
+{
+    int nj = boxes->nAtoms[jBox];
+    copyAtom(atoms, buffer, iId, iBox, nj, jBox);
+    boxes->nAtoms[jBox]++;
+
+    assert(boxes->nAtoms[jBox] < MAXATOMS);
+
+    boxes->nAtoms[iBox]--;
+
+    int ni = boxes->nAtoms[iBox];
+    //This fills the 'hole' with the last entry in the cell.
+    if (ni) copyAtom(atoms, buffer, ni, iBox, iId, iBox);
 
     if (jBox > boxes->nLocalBoxes)
         --atoms->nLocal;
@@ -296,7 +313,7 @@ void updateLinkCellsOld(LinkCell* boxes, Atoms* atoms)
         {
             int jBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
             if (jBox != iBox)
-                moveAtom(boxes, atoms, ii, iBox, jBox);
+                moveAtom(boxes, atoms, atoms, ii, iBox, jBox);
             else
                 ++ii;
         }
@@ -304,37 +321,41 @@ void updateLinkCellsOld(LinkCell* boxes, Atoms* atoms)
 }
 
 
-void updateLinkCells(LinkCell* boxes, Atoms* atoms)
+//The correctness of the task dependencies here depends on the assumption that there are no
+//dependencies between this function and the function that last wrote the position
+void updateLinkCells(LinkCell* boxes, Atoms* atoms, Atoms* buffer)
 {
-    emptyHaloCells(boxes);
+    //TODO: These are already zeroed out in force, do they need to be zeroed out here?
+    //emptyHaloCells(boxes);
 
-    real3  *atomP = atoms->p;
-    real3  *atomF = atoms->f;
+    int neighbors[27];
     real3  *atomR = atoms->r;
-    real_t *atomU = atoms->U;
-    int moveTo[MAXATOMS];
-    int atomNbr[MAXATOMS];
-    int moveCount;
-    for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
-        moveCount=0;
-        int iOff = iBox*MAXATOMS;
-        for(int ii=0; ii < boxes->nAtoms[iBox]; ii++) {
-            int jBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
-            if (jBox != iBox) {
-                moveTo[moveCount] = jBox;
-                atomNbr[moveCount] = ii;
-                moveCount++;
-            }
+    for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
+        for(int nBox=0; nBox < 27; nBox++) {
+            neighbors[nBox] =  boxes->nbrBoxes[iBox][nBox];
         }
-        //This needs to decrement, in the case where multiple atoms leave a box, and the list gets
-        //shorter. Only the tasks created will be appending to other nodes to be read by this
-        //function.
-        for(int ii=moveCount-1; ii>0; ii--) {
-            //TODO: I should add something here to synchronize with other atom movement functions.
-#pragma omp task depend(inout: \
-                               atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS], atomF[iBox*MAXATOMS], atomU[iBox*MAXATOMS],\
-                               atomP[moveTo[ii]*MAXATOMS], atomR[moveTo[ii]*MAXATOMS], atomF[moveTo[ii]*MAXATOMS], atomU[moveTo[ii]*MAXATOMS] )
-            moveAtom(boxes, atoms, atomNbr[ii], iBox, moveTo[ii]);
+#pragma omp task depend(out: buffer[iBox]) \
+                 depend( in: atomR[neighbors[0 ]*MAXATOMS], atomR[neighbors[1 ]*MAXATOMS], atomR[neighbors[2 ]*MAXATOMS], \
+                             atomR[neighbors[3 ]*MAXATOMS], atomR[neighbors[4 ]*MAXATOMS], atomR[neighbors[5 ]*MAXATOMS], \
+                             atomR[neighbors[6 ]*MAXATOMS], atomR[neighbors[7 ]*MAXATOMS], atomR[neighbors[8 ]*MAXATOMS], \
+                             atomR[neighbors[9 ]*MAXATOMS], atomR[neighbors[10]*MAXATOMS], atomR[neighbors[11]*MAXATOMS], \
+                             atomR[neighbors[12]*MAXATOMS], atomR[neighbors[13]*MAXATOMS], atomR[neighbors[14]*MAXATOMS], \
+                             atomR[neighbors[15]*MAXATOMS], atomR[neighbors[16]*MAXATOMS], atomR[neighbors[17]*MAXATOMS], \
+                             atomR[neighbors[18]*MAXATOMS], atomR[neighbors[19]*MAXATOMS], atomR[neighbors[20]*MAXATOMS], \
+                             atomR[neighbors[21]*MAXATOMS], atomR[neighbors[22]*MAXATOMS], atomR[neighbors[23]*MAXATOMS], \
+                             atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
+        {
+            int iOff = iBox*MAXATOMS;
+            int ii=0;
+            while (ii < boxes->nAtoms[iBox]) {
+                int jBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
+                if (jBox != iBox) {
+                    //TODO: change this to move atom to buffer
+                    moveAtom(boxes, atoms, buffer, ii, iBox, jBox);
+                } else {
+                    ++ii;
+                }
+            }
         }
     }
 }
@@ -358,16 +379,16 @@ int maxOccupancy(LinkCell* boxes)
 /// Copy atom iAtom in link cell iBox to atom jAtom in link cell jBox.
 /// Any data at jAtom, jBox is overwritten.  This routine can be used to
 /// re-order atoms within a link cell.
-void copyAtom(LinkCell* boxes, Atoms* atoms, int iAtom, int iBox, int jAtom, int jBox)
+void copyAtom(Atoms* in, Atoms* out, int iAtom, int iBox, int jAtom, int jBox)
 {
     const int iOff = MAXATOMS*iBox+iAtom;
     const int jOff = MAXATOMS*jBox+jAtom;
-    atoms->gid[jOff] = atoms->gid[iOff];
-    atoms->iSpecies[jOff] = atoms->iSpecies[iOff];
-    memcpy(atoms->r[jOff], atoms->r[iOff], sizeof(real3));
-    memcpy(atoms->p[jOff], atoms->p[iOff], sizeof(real3));
-    memcpy(atoms->f[jOff], atoms->f[iOff], sizeof(real3));
-    memcpy(atoms->U+jOff,  atoms->U+iOff,  sizeof(real_t));
+    out->gid[jOff] = in->gid[iOff];
+    out->iSpecies[jOff] = in->iSpecies[iOff];
+    memcpy(out->r[jOff], in->r[iOff], sizeof(real3));
+    memcpy(out->p[jOff], in->p[iOff], sizeof(real3));
+    memcpy(out->f[jOff], in->f[iOff], sizeof(real3));
+    memcpy(out->U+jOff,  in->U+iOff,  sizeof(real_t));
 }
 
 /// Get the index of the link cell that contains the specified
