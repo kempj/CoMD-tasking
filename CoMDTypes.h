@@ -68,9 +68,10 @@ typedef struct SimFlatSt
    Domain* domain;        //<! domain decomposition data
 
    LinkCell* boxes;       //<! link-cell data
+   LinkCell* boxesBuffer; //<! link-cell data
 
    Atoms* atoms;          //<! atom data (positions, momenta, ...)
-   Atoms* localBuffer;    //<! buffer to synchronize task dependency version.
+   Atoms* atomsBuffer;     //<! buffer to synchronize task dependency version.
 
    SpeciesData* species;  //<! species data (per species, not per atom)
    

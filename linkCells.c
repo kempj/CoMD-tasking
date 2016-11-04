@@ -250,41 +250,28 @@ int getBoxFromTuple(LinkCell* boxes, int ix, int iy, int iz)
 /// \param iId [in]  The index with box iBox of the atom to be moved.
 /// \param iBox [in] The index of the link cell the particle is moving from.
 /// \param jBox [in] The index of the link cell the particle is moving to.
-void moveAtomOld(LinkCell* boxes, Atoms* atoms, int iId, int iBox, int jBox)
+void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes, 
+               Atoms* srcAtoms, Atoms* destAtoms, 
+               int srcPosition, int srcBox, int destBox)
 {
-    int nj = boxes->nAtoms[jBox];
-    copyAtom(atoms, atoms, iId, iBox, nj, jBox);
-    boxes->nAtoms[jBox]++;
+    int destPosition = destBoxes->nAtoms[destBox];
+    copyAtom(srcAtoms, destAtoms, srcPosition, srcBox, destPosition, destBox);
+    destBoxes->nAtoms[destBox]++;
 
-    assert(boxes->nAtoms[jBox] < MAXATOMS);
+    assert(destBoxes->nAtoms[destBox] < MAXATOMS);
 
-    boxes->nAtoms[iBox]--;
-    int ni = boxes->nAtoms[iBox];
-    if (ni) copyAtom(atoms, atoms, ni, iBox, iId, iBox);
+    srcBoxes->nAtoms[srcBox]--;
 
-    if (jBox > boxes->nLocalBoxes)
-        --atoms->nLocal;
-
-    return;
-}
-
-void moveAtom(LinkCell* boxes, Atoms* atoms, Atoms* buffer, int iId, int iBox, int jBox)
-{
-    int nj = boxes->nAtoms[jBox];
-    copyAtom(atoms, buffer, iId, iBox, nj, jBox);
-    boxes->nAtoms[jBox]++;
-
-    assert(boxes->nAtoms[jBox] < MAXATOMS);
-
-    boxes->nAtoms[iBox]--;
-
-    int ni = boxes->nAtoms[iBox];
+    int ni = srcBoxes->nAtoms[srcBox];
     //This fills the 'hole' with the last entry in the cell.
-    if (ni) copyAtom(atoms, buffer, ni, iBox, iId, iBox);
-
-    if (jBox > boxes->nLocalBoxes)
-        --atoms->nLocal;
-
+    if (ni) {
+        copyAtom(srcAtoms, srcAtoms, ni, srcBox, srcPosition, srcBox);
+    }
+    //TODO: Is this correct?
+    if (destBox > destBoxes->nLocalBoxes) {
+        --destAtoms->nLocal;
+        --srcAtoms->nLocal;
+    }
     return;
 }
 
@@ -301,40 +288,24 @@ void moveAtom(LinkCell* boxes, Atoms* atoms, Atoms* buffer, int iId, int iBox, i
 /// to halo atoms.  Such atom must be sent to other tasks by a halo
 /// exchange to avoid being lost.
 /// \see redistributeAtoms
-void updateLinkCellsOld(LinkCell* boxes, Atoms* atoms)
-{
-    emptyHaloCells(boxes);
-
-    for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox)
-    {
-        int iOff = iBox*MAXATOMS;
-        int ii=0;
-        while (ii < boxes->nAtoms[iBox])
-        {
-            int jBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
-            if (jBox != iBox)
-                moveAtom(boxes, atoms, atoms, ii, iBox, jBox);
-            else
-                ++ii;
-        }
-    }
-}
-
 
 //The correctness of the task dependencies here depends on the assumption that there are no
 //dependencies between this function and the function that last wrote the position
-void updateLinkCells(LinkCell* boxes, Atoms* atoms, Atoms* buffer)
+void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms* atomsBuffer)
 {
     //TODO: These are already zeroed out in force, do they need to be zeroed out here?
     //emptyHaloCells(boxes);
+    real3  *atomF = atoms->f;
+    real3  *atomR = atoms->r;
+    real_t *atomU = atoms->U;
+    real3  *atomP = atoms->p;
 
     int neighbors[27];
-    real3  *atomR = atoms->r;
     for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
         for(int nBox=0; nBox < 27; nBox++) {
             neighbors[nBox] =  boxes->nbrBoxes[iBox][nBox];
         }
-#pragma omp task depend(out: buffer[iBox]) \
+#pragma omp task depend(out: atomsBuffer[iBox]) \
                  depend( in: atomR[neighbors[0 ]*MAXATOMS], atomR[neighbors[1 ]*MAXATOMS], atomR[neighbors[2 ]*MAXATOMS], \
                              atomR[neighbors[3 ]*MAXATOMS], atomR[neighbors[4 ]*MAXATOMS], atomR[neighbors[5 ]*MAXATOMS], \
                              atomR[neighbors[6 ]*MAXATOMS], atomR[neighbors[7 ]*MAXATOMS], atomR[neighbors[8 ]*MAXATOMS], \
@@ -350,11 +321,19 @@ void updateLinkCells(LinkCell* boxes, Atoms* atoms, Atoms* buffer)
             while (ii < boxes->nAtoms[iBox]) {
                 int jBox = getBoxFromCoord(boxes, atoms->r[iOff+ii]);
                 if (jBox != iBox) {
-                    //TODO: change this to move atom to buffer
-                    moveAtom(boxes, atoms, buffer, ii, iBox, jBox);
+                    moveAtom(boxes, boxesBuffer, atoms, atomsBuffer, ii, iBox, jBox);
                 } else {
                     ++ii;
                 }
+            }
+        }
+    }
+    for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
+#pragma omp task depend(in : atomsBuffer[iBox]) \
+                 depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
+                             atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
+        {
+            for(int nAtoms=0; nAtoms<boxesBuffer->nAtoms[iBox]; nAtoms++) {
             }
         }
     }

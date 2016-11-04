@@ -207,7 +207,9 @@ SimFlat* initSimulation(Command cmd)
 
     sim->boxes = initLinkCells(sim->domain, sim->pot->cutoff);
     sim->atoms = initAtoms(sim->boxes);
-    sim->localBuffer = initAtoms(sim->boxes);
+
+    sim->boxesBuffer = initLinkCells(sim->domain, sim->pot->cutoff);
+    sim->atomsBuffer = initAtoms(sim->boxes);
 
     createFccLattice(cmd.nx, cmd.ny, cmd.nz, latticeConstant, sim);
 
@@ -244,7 +246,7 @@ void destroySimulation(SimFlat** ps)
     if ( pot) pot->destroy(&pot);
     destroyLinkCells(&(s->boxes));
     destroyAtoms(s->atoms);
-    destroyAtoms(s->localBuffer);
+    destroyAtoms(s->atomsBuffer);
     destroyHaloExchange(&(s->atomExchange));
     comdFree(s->species);
     comdFree(s->domain);
