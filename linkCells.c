@@ -333,7 +333,8 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
                              atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
         {
-            for(int nAtoms=0; nAtoms<boxesBuffer->nAtoms[iBox]; nAtoms++) {
+            while( boxesBuffer->nAtoms[iBox] > 0 ) {
+                moveAtom(boxesBuffer, boxes, atomsBuffer, atoms, boxesBuffer->nAtoms[iBox]-1, iBox, iBox);
             }
         }
     }
