@@ -122,6 +122,7 @@ void kineticEnergy(SimFlat* s)
         }
     }
 
+    printf("entering KE reduction\n");
     ompReduce(reductionArray, s->boxes->nLocalBoxes);
     real_t *eKinetic= &(s->eKinetic);
 #pragma omp task depend( in: reductionArray[0] ) depend( out: eKinetic[0] )
@@ -147,9 +148,9 @@ void redistributeAtoms(SimFlat* sim)
     //This involves a copy of each atom that has moved from one cell to it's neighbor
     updateLinkCells(sim->boxes, sim->boxesBuffer, sim->atoms, sim->atomsBuffer);
 
-    startTimer(atomHaloTimer);
-    haloExchange(sim->atomExchange, sim);
-    stopTimer(atomHaloTimer);
+    //startTimer(atomHaloTimer);
+    //haloExchange(sim->atomExchange, sim);
+    //stopTimer(atomHaloTimer);
 
     real3 *atomP = sim->atoms->p;
     real3 *atomR = sim->atoms->r;

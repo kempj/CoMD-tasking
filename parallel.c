@@ -24,6 +24,7 @@ static int nRanks = 1;
 
 void ompReduceStride(double *depArray, int arraySize, int depStride)
 {
+    printf("starting a new reduction: %d, %d\n", arraySize, depStride);
 #pragma omp task depend(inout:depArray[0])
     for(int j=0; j < depStride; j++) {
         depArray[j] = 0.;
@@ -33,8 +34,8 @@ void ompReduceStride(double *depArray, int arraySize, int depStride)
     //immediately after the array in memory.
     int reductionStride = 16*depStride;
     int innerStride = depStride;
-    while( innerStride < arraySize ) { 
-        for(int boxNum=0; boxNum < arraySize; boxNum +=reductionStride) {
+    while( innerStride < (arraySize*depStride) ) { 
+        for(int boxNum=0; boxNum < (arraySize*depStride); boxNum +=reductionStride) {
 #pragma omp task depend(inout: depArray[boxNum]) \
                  depend(in   : depArray[boxNum+   innerStride],\
                                depArray[boxNum+2 *innerStride], depArray[boxNum+3 *innerStride],\
@@ -44,10 +45,12 @@ void ompReduceStride(double *depArray, int arraySize, int depStride)
                                depArray[boxNum+10*innerStride], depArray[boxNum+11*innerStride],\
                                depArray[boxNum+12*innerStride], depArray[boxNum+13*innerStride],\
                                depArray[boxNum+14*innerStride], depArray[boxNum+15*innerStride])
-            for(int i=boxNum+innerStride; i<(boxNum+reductionStride) && i<=(arraySize-depStride); i += innerStride) {
+            for(int i=boxNum+innerStride; i<(boxNum+reductionStride) && i<=((arraySize*depStride)-depStride); i += innerStride) {
+                printf("depArray[%d] = %f + deparray[%d] (%f)\n", boxNum, depArray[boxNum], i, depArray[i]);
                 for(int j=0; j<depStride; j++) {
                     //depArray[boxNum] += depArray[i+j];
                     depArray[boxNum+j] += depArray[i+j];
+                    printf("\t = %f\n", depArray[boxNum+j]);
                     depArray[i+j] = 0.;
                 }
             }

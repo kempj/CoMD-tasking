@@ -86,11 +86,10 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 
     real_t px,py,pz;
     px=py=pz=0.0;
-    for (int ix=begin[0]; ix<end[0]; ++ix)
-        for (int iy=begin[1]; iy<end[1]; ++iy)
-            for (int iz=begin[2]; iz<end[2]; ++iz)
-                for (int ib=0; ib<nb; ++ib)
-                {
+    for (int ix=begin[0]; ix<end[0]; ++ix) {
+        for (int iy=begin[1]; iy<end[1]; ++iy) {
+            for (int iz=begin[2]; iz<end[2]; ++iz) {
+                for (int ib=0; ib<nb; ++ib) {
                     real_t rx = (ix+basis[ib][0]) * lat;
                     real_t ry = (iy+basis[ib][1]) * lat;
                     real_t rz = (iz+basis[ib][2]) * lat;
@@ -100,12 +99,15 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
                     int id = ib+nb*(iz+nz*(iy+ny*(ix)));
                     putAtomInBox(sim->boxes, sim->atoms, id, 0, rx, ry, rz, px, py, pz);
                 }
-
+            }
+        }
+    }
 
     // set total atoms in simulation
     startTimer(commReduceTimer);
     addIntParallel(&sim->atoms->nLocal, &sim->atoms->nGlobal, 1);
     stopTimer(commReduceTimer);
+
 
     assert(sim->atoms->nGlobal == nb*nx*ny*nz);
 }
@@ -136,7 +138,9 @@ void setVcm()
             }
         }
     }
+    printf("starting r3 reduction in setVcm with %d entries\n", sim->boxes->nLocalBoxes);
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
+    printf("starting stride 1reduction in setVcm with %d entries\n", sim->boxes->nLocalBoxes);
     ompReduce(reductionArray, sim->boxes->nLocalBoxes);
 
 #pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vInit[0])

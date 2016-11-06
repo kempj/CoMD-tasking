@@ -161,9 +161,11 @@ void boxForce(int iBox, SimFlat *s)
 
     int nNbrBoxes = 27;
     int nIBox = s->boxes->nAtoms[iBox];
+    double ePot = 0;
     for(int jTmp=0; jTmp < nNbrBoxes; jTmp++) {
         int jBox  = s->boxes->nbrBoxes[iBox][jTmp];
         int nJBox = s->boxes->nAtoms[jBox];
+        //printf("for iBox %d, jbox %d has %d Atoms\n", iBox, jBox, nJBox);
         for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
             for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
                 real3 dr;
@@ -176,8 +178,10 @@ void boxForce(int iBox, SimFlat *s)
                     r2 = 1.0/r2;
                     real_t r6 = s6 * (r2*r2*r2);
                     real_t eLocal = r6 * (r6 - 1.0) - eShift;
+                    //printf("eLocal ibox, jbox (%d, %d) = %f\n", iBox, jBox, eLocal);
                     s->atoms->U[iOff] += 0.5*eLocal;
-                    reductionArray[iBox] += 0.5*eLocal;
+                    //reductionArray[iBox] += 0.5*eLocal;
+                    ePot += 0.5*eLocal;
 
                     real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
                     for (int m=0; m<3; m++) {
@@ -187,6 +191,8 @@ void boxForce(int iBox, SimFlat *s)
             }
         }
     }
+    reductionArray[iBox] = ePot;
+    printf("writing to reductionArray[%d] = %f = %f\n", iBox, reductionArray[iBox], ePot);
 }
 
 int ljForce(SimFlat* s)
@@ -229,11 +235,15 @@ int ljForce(SimFlat* s)
             s->atoms->U[ii] = 0.;
         }
     }
+    printf("entering reduction in ljForce\n");
     ompReduce(reductionArray, s->boxes->nTotalBoxes);
 
     real_t *ePotential = &(s->ePotential);
 #pragma omp task depend(in: reductionArray[0]) depend(out: ePotential[0])
-    *ePotential = reductionArray[0]*4.0*((LjPotential*)(s->pot))->epsilon;
+    {
+        *ePotential = reductionArray[0]*4.0*((LjPotential*)(s->pot))->epsilon;
+        printf("ePotential being written %f = %f * %f\n", *ePotential, reductionArray[0], 4.0*((LjPotential*)(s->pot))->epsilon);
+    }
 
     return 0;
 }
