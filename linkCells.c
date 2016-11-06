@@ -180,11 +180,6 @@ void putAtomInBox(LinkCell* boxes, Atoms* atoms,
         atoms->nLocal++;
     boxes->nAtoms[iBox]++;
 
-     if(boxes->nAtoms[iBox] <= 1)
-         printf("\n\nnbox[%d] = %d", iBox, boxes->nAtoms[iBox]);
-     else
-         printf(", %d", boxes->nAtoms[iBox]);
-          
     atoms->gid[iOff] = gid;
     atoms->iSpecies[iOff] = iType;
 

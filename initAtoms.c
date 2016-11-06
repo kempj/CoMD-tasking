@@ -138,9 +138,7 @@ void setVcm()
             }
         }
     }
-    printf("starting r3 reduction in setVcm with %d entries\n", sim->boxes->nLocalBoxes);
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
-    printf("starting stride 1reduction in setVcm with %d entries\n", sim->boxes->nLocalBoxes);
     ompReduce(reductionArray, sim->boxes->nLocalBoxes);
 
 #pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vInit[0])
