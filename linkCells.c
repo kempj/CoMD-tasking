@@ -203,42 +203,29 @@ int getBoxFromTuple(LinkCell* boxes, int ix, int iy, int iz)
     int iBox = 0;
     const int* gridSize = boxes->gridSize; // alias
 
-    // Halo in Z+
-    if (iz == gridSize[2])
-    {
+    if (iz == gridSize[2]) {
+        // Halo in Z+
         iBox = boxes->nLocalBoxes + 2*gridSize[2]*gridSize[1] + 2*gridSize[2]*(gridSize[0]+2) +
             (gridSize[0]+2)*(gridSize[1]+2) + (gridSize[0]+2)*(iy+1) + (ix+1);
-    }
-    // Halo in Z-
-    else if (iz == -1)
-    {
+    } else if (iz == -1) {
+        // Halo in Z-
         iBox = boxes->nLocalBoxes + 2*gridSize[2]*gridSize[1] + 2*gridSize[2]*(gridSize[0]+2) +
             (gridSize[0]+2)*(iy+1) + (ix+1);
-    }
-    // Halo in Y+
-    else if (iy == gridSize[1])
-    {
+    } else if (iy == gridSize[1]) {
+        // Halo in Y+
         iBox = boxes->nLocalBoxes + 2*gridSize[2]*gridSize[1] + gridSize[2]*(gridSize[0]+2) +
             (gridSize[0]+2)*iz + (ix+1);
-    }
-    // Halo in Y-
-    else if (iy == -1)
-    {
+    } else if (iy == -1) {
+        // Halo in Y-
         iBox = boxes->nLocalBoxes + 2*gridSize[2]*gridSize[1] + iz*(gridSize[0]+2) + (ix+1);
-    }
-    // Halo in X+
-    else if (ix == gridSize[0])
-    {
+    } else if (ix == gridSize[0]) {
+        // Halo in X+
         iBox = boxes->nLocalBoxes + gridSize[1]*gridSize[2] + iz*gridSize[1] + iy;
-    }
-    // Halo in X-
-    else if (ix == -1)
-    {
+    } else if (ix == -1) {
+        // Halo in X-
         iBox = boxes->nLocalBoxes + iz*gridSize[1] + iy;
-    }
-    // local link celll.
-    else
-    {
+    } else {
+        // local link celll.
         iBox = ix + gridSize[0]*iy + gridSize[0]*gridSize[1]*iz;
     }
     assert(iBox >= 0);
@@ -294,8 +281,8 @@ void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes,
 //dependencies between this function and the function that last wrote the position
 void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms* atomsBuffer)
 {
-    //TODO: These are already zeroed out in force, do they need to be zeroed out here?
     emptyHaloCells(boxes);
+
     real3  *atomF = atoms->f;
     real3  *atomR = atoms->r;
     real_t *atomU = atoms->U;
