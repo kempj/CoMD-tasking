@@ -148,7 +148,7 @@ void redistributeAtoms(SimFlat* sim)
     updateLinkCells(sim->boxes, sim->boxesBuffer, sim->atoms, sim->atomsBuffer);
 
     //startTimer(atomHaloTimer);
-    //haloExchange(sim->atomExchange, sim);
+    haloExchange(sim->atomExchange, sim);
     //stopTimer(atomHaloTimer);
 
     real3 *atomP = sim->atoms->p;

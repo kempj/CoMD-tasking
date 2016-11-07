@@ -295,7 +295,7 @@ void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes,
 void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms* atomsBuffer)
 {
     //TODO: These are already zeroed out in force, do they need to be zeroed out here?
-    //emptyHaloCells(boxes);
+    emptyHaloCells(boxes);
     real3  *atomF = atoms->f;
     real3  *atomR = atoms->r;
     real_t *atomU = atoms->U;
