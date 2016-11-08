@@ -189,6 +189,7 @@ void boxForce(int iBox, SimFlat *s)
         }
     }
     reductionArray[iBox] = ePot;
+    printf("ePot for box %d is %f\n", iBox, ePot);
 }
 
 int ljForce(SimFlat* s)
@@ -234,9 +235,12 @@ int ljForce(SimFlat* s)
     ompReduce(reductionArray, s->boxes->nTotalBoxes);
 
     real_t *ePotential = &(s->ePotential);
-#pragma omp task depend(in: reductionArray[0]) depend(out: ePotential[0])
+#pragma omp task depend(inout: reductionArray[0]) depend(out: ePotential[0])
     {
+        printf("ePot is %f\n", reductionArray[0]);
+
         *ePotential = reductionArray[0]*4.0*((LjPotential*)(s->pot))->epsilon;
+        reductionArray[0] = 0;
     }
 
     return 0;

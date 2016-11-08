@@ -141,12 +141,16 @@ void setVcm()
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
     ompReduce(reductionArray, sim->boxes->nLocalBoxes);
 
-#pragma omp task depend( in: r3ReductionArray[0], reductionArray[0]) depend( out: vInit[0])
+#pragma omp task depend(inout: r3ReductionArray[0], reductionArray[0]) depend( out: vInit[0])
     {
         real_t v3 = reductionArray[0]; 
         vInit[0] -= r3ReductionArray[0][0]/v3;
         vInit[1] -= r3ReductionArray[0][1]/v3;
         vInit[2] -= r3ReductionArray[0][2]/v3;
+        reductionArray[0] = 0;
+        r3ReductionArray[0][0] = 0;
+        r3ReductionArray[0][1] = 0;
+        r3ReductionArray[0][2] = 0;
     }
 
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {

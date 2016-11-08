@@ -277,11 +277,18 @@ void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes,
 /// exchange to avoid being lost.
 /// \see redistributeAtoms
 
+//atomsBuffer should only be used in the tasks created by this function. The first set output to the
+//buffer, the second set of tasks take the buffer as input and output back to the original array.
+
 //The correctness of the task dependencies here depends on the assumption that there are no
 //dependencies between this function and the function that last wrote the position
 void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms* atomsBuffer)
 {
     emptyHaloCells(boxes);
+    //for (int ii=boxes->nLocalBoxes; ii<boxes->nTotalBoxes; ++ii) {
+//#pragma omp task depend(inout: boxes->nAtoms[ii])
+//        boxes->nAtoms[ii] = 0;
+//    }
 
     real3  *atomF = atoms->f;
     real3  *atomR = atoms->r;
@@ -293,16 +300,15 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
         for(int nBox=0; nBox < 27; nBox++) {
             neighbors[nBox] =  boxes->nbrBoxes[iBox][nBox];
         }
-#pragma omp task depend(out: atomsBuffer[iBox]) \
-                 depend( in: atomR[neighbors[0 ]*MAXATOMS], atomR[neighbors[1 ]*MAXATOMS], atomR[neighbors[2 ]*MAXATOMS], \
-                             atomR[neighbors[3 ]*MAXATOMS], atomR[neighbors[4 ]*MAXATOMS], atomR[neighbors[5 ]*MAXATOMS], \
-                             atomR[neighbors[6 ]*MAXATOMS], atomR[neighbors[7 ]*MAXATOMS], atomR[neighbors[8 ]*MAXATOMS], \
-                             atomR[neighbors[9 ]*MAXATOMS], atomR[neighbors[10]*MAXATOMS], atomR[neighbors[11]*MAXATOMS], \
-                             atomR[neighbors[12]*MAXATOMS], atomR[neighbors[13]*MAXATOMS], atomR[neighbors[14]*MAXATOMS], \
-                             atomR[neighbors[15]*MAXATOMS], atomR[neighbors[16]*MAXATOMS], atomR[neighbors[17]*MAXATOMS], \
-                             atomR[neighbors[18]*MAXATOMS], atomR[neighbors[19]*MAXATOMS], atomR[neighbors[20]*MAXATOMS], \
-                             atomR[neighbors[21]*MAXATOMS], atomR[neighbors[22]*MAXATOMS], atomR[neighbors[23]*MAXATOMS], \
-                             atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
+#pragma omp task depend(inout: atomR[neighbors[0 ]*MAXATOMS], atomR[neighbors[1 ]*MAXATOMS], atomR[neighbors[2 ]*MAXATOMS], \
+                               atomR[neighbors[3 ]*MAXATOMS], atomR[neighbors[4 ]*MAXATOMS], atomR[neighbors[5 ]*MAXATOMS], \
+                               atomR[neighbors[6 ]*MAXATOMS], atomR[neighbors[7 ]*MAXATOMS], atomR[neighbors[8 ]*MAXATOMS], \
+                               atomR[neighbors[9 ]*MAXATOMS], atomR[neighbors[10]*MAXATOMS], atomR[neighbors[11]*MAXATOMS], \
+                               atomR[neighbors[12]*MAXATOMS], atomR[neighbors[13]*MAXATOMS], atomR[neighbors[14]*MAXATOMS], \
+                               atomR[neighbors[15]*MAXATOMS], atomR[neighbors[16]*MAXATOMS], atomR[neighbors[17]*MAXATOMS], \
+                               atomR[neighbors[18]*MAXATOMS], atomR[neighbors[19]*MAXATOMS], atomR[neighbors[20]*MAXATOMS], \
+                               atomR[neighbors[21]*MAXATOMS], atomR[neighbors[22]*MAXATOMS], atomR[neighbors[23]*MAXATOMS], \
+                               atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
         {
             int iOff = iBox*MAXATOMS;
             int ii=0;
@@ -316,7 +322,8 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
             }
         }
     }
-    for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
+    //for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
+    for (int iBox=0; iBox<boxes->nTotalBoxes; ++iBox) {
 #pragma omp task depend(in : atomsBuffer[iBox]) \
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
                              atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
