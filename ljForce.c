@@ -189,7 +189,6 @@ void boxForce(int iBox, SimFlat *s)
         }
     }
     reductionArray[iBox] = ePot;
-    printf("ePot for box %d is %f\n", iBox, ePot);
 }
 
 int ljForce(SimFlat* s)
@@ -237,8 +236,6 @@ int ljForce(SimFlat* s)
     real_t *ePotential = &(s->ePotential);
 #pragma omp task depend(inout: reductionArray[0]) depend(out: ePotential[0])
     {
-        printf("ePot is %f\n", reductionArray[0]);
-
         *ePotential = reductionArray[0]*4.0*((LjPotential*)(s->pot))->epsilon;
         reductionArray[0] = 0;
     }
@@ -257,7 +254,6 @@ int ljForceBlocked(SimFlat *s)
     for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox+=blockSize) {
         int sizeX = s->boxes->gridSize[0];
         int sizeY = s->boxes->gridSize[1];
-        printf("traversing boxes: %d, %d, %d\n", iBox/(sizeX*sizeY), iBox/sizeX, iBox%sizeX);
         for(int nBox=0; nBox < 27; nBox++) {
             neighbors[nBox] =  s->boxes->nbrBoxes[iBox][nBox];
         }

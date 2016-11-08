@@ -24,10 +24,6 @@ static int nRanks = 1;
 
 void ompReduceStride(double *depArray, int arraySize, int depStride)
 {
-//#pragma omp task depend(inout:depArray[0])
-//    for(int j=0; j < depStride; j++) {
-//        depArray[j] = 0.;
-//    }
 
     //FIXME: at the end of the reduction array, the dependencies could depend on an any variables
     //immediately after the array in memory.
