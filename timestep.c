@@ -153,7 +153,7 @@ void redistributeAtoms(SimFlat* sim)
     updateLinkCells(sim->boxes, sim->boxesBuffer, sim->atoms, sim->atomsBuffer);
 
     startTimer(atomHaloTimer);
-    //haloExchange(sim->atomExchange, sim);
+    haloExchange(sim->atomExchange, sim);
     
     int sizeX = sim->boxes->localMax[0];
     int sizeY = sim->boxes->localMax[1];
