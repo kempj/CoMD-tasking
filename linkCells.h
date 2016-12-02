@@ -38,6 +38,9 @@ void putAtomInBox(LinkCell* boxes, struct AtomsSt* atoms,
                   const int gid, const int iType,
                   const real_t x,  const real_t y,  const real_t z,
                   const real_t px, const real_t py, const real_t pz);
+
+int getBoxFromCoord(LinkCell* boxes, real_t rr[3]);
+
 int getBoxFromTuple(LinkCell* boxes, int x, int y, int z);
 
 //void moveAtom(LinkCell* boxes, struct AtomsSt* atoms, struct AtomsSt* buffer, int iId, int iBox, int jBox);
@@ -53,5 +56,6 @@ void updateLinkCells( LinkCell* boxes, LinkCell* boxesBuffer,
 
 int maxOccupancy(LinkCell* boxes);
 
+void getTuple(LinkCell* boxes, int iBox, int* ixp, int* iyp, int* izp);
 
 #endif

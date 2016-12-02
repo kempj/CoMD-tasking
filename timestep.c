@@ -147,15 +147,35 @@ void kineticEnergy(SimFlat* s)
 /// \see sortAtomsInCell
 void redistributeAtoms(SimFlat* sim)
 {
+    real3 *atomP = sim->atoms->p;
+    real3 *atomR = sim->atoms->r;
     //This involves a copy of each atom that has moved from one cell to it's neighbor
     updateLinkCells(sim->boxes, sim->boxesBuffer, sim->atoms, sim->atomsBuffer);
 
     startTimer(atomHaloTimer);
-    haloExchange(sim->atomExchange, sim);
+    //haloExchange(sim->atomExchange, sim);
+    
+    int sizeX = sim->boxes->localMax[0];
+    int sizeY = sim->boxes->localMax[1];
+    int sizeZ = sim->boxes->localMax[2];
+
+    /*
+     * for(int iBox=0; iBox<sim->boxes->nTotalBoxes; ++iBox) {
+        int ix, iy, iz;
+        getTuple(sim->boxes, iBox, &ix, &iy, &iz);
+        if(ix == sizeX - 1) {
+        }
+        if(iy == sizeY - 1) {
+        }
+        if(iz == sizeZ - 1) {
+        }
+
+    }
+    */
+
+    //TODO: zero out halo buffers
     stopTimer(atomHaloTimer);
 
-    real3 *atomP = sim->atoms->p;
-    real3 *atomR = sim->atoms->r;
     for(int iBox=0; iBox<sim->boxes->nTotalBoxes; ++iBox) {
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS])
         sortAtomsInCell(sim->atoms, sim->boxes, iBox);

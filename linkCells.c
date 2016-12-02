@@ -76,7 +76,7 @@
 #define   MAX(A,B) ((A) > (B) ? (A) : (B))
 
 static void copyAtom(Atoms* in, Atoms* out, int iAtom, int iBox, int jAtom, int jBox);
-static int getBoxFromCoord(LinkCell* boxes, real_t rr[3]);
+//static int getBoxFromCoord(LinkCell* boxes, real_t rr[3]);
 static void emptyHaloCells(LinkCell* boxes);
 static void getTuple(LinkCell* boxes, int iBox, int* ixp, int* iyp, int* izp);
 
@@ -113,6 +113,7 @@ LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
         ll->nbrBoxes[iBox] = comdMalloc(27*sizeof(int));
     }
 
+    //TODO: change this to nTotalBoxes.
     for (int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
         getNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
     }
@@ -132,6 +133,62 @@ void destroyLinkCells(LinkCell** boxes)
     return;
 }
 
+int getLocalNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
+{
+    int ix, iy, iz;
+    getTuple(boxes, iBox, &ix, &iy, &iz);
+
+    int count = 0;
+    for (int i=ix-1; i<=ix+1; i++) {
+        for (int j=iy-1; j<=iy+1; j++) {
+            for (int k=iz-1; k<=iz+1; k++) {
+                nbrBoxes[count++] = getBoxFromTuple(boxes,i,j,k);
+            }
+        }
+    }
+    return count;
+}
+
+int getHaloNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
+{
+    int ix, iy, iz;
+    getTuple(boxes, iBox, &ix, &iy, &iz);
+    const real_t* localMin = boxes->localMin; // alias
+    const real_t* localMax = boxes->localMax; // alias
+
+    int count = 0;
+    for (int i=ix-1; i<=ix+1; i++) {
+        for (int j=iy-1; j<=iy+1; j++) {
+            for (int k=iz-1; k<=iz+1; k++) {
+                int x=i;
+                if(i < localMin[0]) {
+                    x = localMax[0];
+                }
+                if(i > localMax[0]) {
+                    x = localMin[0];
+                }
+                int y=j;
+                if(j < localMin[1]) {
+                    y = localMax[1];
+                }
+                if(j > localMax[1]) {
+                    y = localMin[1];
+                }
+                int z=k;
+                if(k < localMin[2]) {
+                    z = localMax[2];
+                }
+                if(k > localMax[2]) {
+                    z = localMin[2];
+                }
+                nbrBoxes[count++] = getBoxFromTuple(boxes,x,y,z);
+            }
+        }
+    }
+
+    return count;
+}
+
 /// \details
 /// Populates the nbrBoxes array with the 27 boxes that are adjacent to
 /// iBox.  The count is 27 instead of 26 because iBox is included in the
@@ -140,17 +197,14 @@ void destroyLinkCells(LinkCell** boxes)
 /// \return The number of nbr boxes (always 27 in this implementation).
 int getNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
 {
-    int ix, iy, iz;
-    getTuple(boxes, iBox, &ix, &iy, &iz);
-
-    int count = 0;
-    for (int i=ix-1; i<=ix+1; i++)
-        for (int j=iy-1; j<=iy+1; j++)
-            for (int k=iz-1; k<=iz+1; k++)
-                nbrBoxes[count++] = getBoxFromTuple(boxes,i,j,k);
-
-    return count;
+    if(iBox < boxes->nLocalBoxes) {
+        getLocalNeighborBoxes(boxes, iBox, nbrBoxes);
+    } else {
+        printf("getting neighbors for halo cells\n");
+        getHaloNeighborBoxes(boxes, iBox, nbrBoxes);
+    }
 }
+
 
 /// \details
 /// Finds the appropriate link cell for an atom based on the spatial
@@ -235,9 +289,9 @@ int getBoxFromTuple(LinkCell* boxes, int ix, int iy, int iz)
 }
 
 /// Move an atom from one link cell to another.
-/// \param iId [in]  The index with box iBox of the atom to be moved.
-/// \param iBox [in] The index of the link cell the particle is moving from.
-/// \param jBox [in] The index of the link cell the particle is moving to.
+/// \param srcPosition [in]  The index with box iBox of the atom to be moved.
+/// \param srcBox [in] The index of the link cell the particle is moving from.
+/// \param destBox [in] The index of the link cell the particle is moving to.
 void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes, 
                Atoms* srcAtoms, Atoms* destAtoms, 
                int srcPosition, int srcBox, int destBox)
@@ -256,7 +310,9 @@ void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes,
         copyAtom(srcAtoms, srcAtoms, ni, srcBox, srcPosition, srcBox);
     }
     //TODO: Is this correct?
+    printf("distBoxes->nLocalBoxes = %d\n", destBoxes->nLocalBoxes);
     if (destBox > destBoxes->nLocalBoxes) {
+        printf("moving atoms to halo cell %d\n", destBox);
         --destAtoms->nLocal;
         --srcAtoms->nLocal;
     }
@@ -322,8 +378,8 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
             }
         }
     }
-    //for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
-    for (int iBox=0; iBox<boxes->nTotalBoxes; ++iBox) {
+    //Moving all cells back
+    for (int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
 #pragma omp task depend(in : atomsBuffer[iBox]) \
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
                              atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
@@ -333,6 +389,8 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
             }
         }
     }
+    //TODO: There doesn't need to be a separate move then send for the halo buffers. 
+    // They can just be sent from the secondary buffer.
 }
 
 /// \return The largest number of atoms in any link cell.
@@ -385,24 +443,35 @@ int getBoxFromCoord(LinkCell* boxes, real_t rr[3])
     int iy = (int)(floor((rr[1] - localMin[1])*boxes->invBoxSize[1]));
     int iz = (int)(floor((rr[2] - localMin[2])*boxes->invBoxSize[2]));
 
+    //printf("\tlocalMin = (%f, %f, %f)\n", boxes->localMin[0], boxes->localMin[1], boxes->localMin[2]) ;
+    //printf("\tlocalMax = (%f, %f, %f)\n", boxes->localMax[0], boxes->localMax[1], boxes->localMax[2]) ;
+    //printf("gridSize = %f, %f, %f\n", gridSize[0], gridSize[1], gridSize[2]);
+    //printf("coords (%f, %f, %f) -> (%d, %d, %d)", rr[0], rr[1], rr[2], ix, iy, iz);
 
     // For each axis, if we are inside the local domain, make sure we get
     // a local link cell.  Otherwise, make sure we get a halo link cell.
     if(rr[0] < localMax[0]) {
-        if (ix == gridSize[0]) ix = gridSize[0] - 1;
+        if (ix == gridSize[0]) {
+            ix = gridSize[0] - 1;
+        }
     } else {
         ix = gridSize[0]; // assign to halo cell
     }
     if(rr[1] < localMax[1]) {
-        if (iy == gridSize[1]) iy = gridSize[1] - 1;
+        if (iy == gridSize[1]) {
+            iy = gridSize[1] - 1;
+        }
     } else {
         iy = gridSize[1];
     }
     if(rr[2] < localMax[2]) {
-        if (iz == gridSize[2]) iz = gridSize[2] - 1;
+        if (iz == gridSize[2]) {
+            iz = gridSize[2] - 1;
+        }
     } else {
         iz = gridSize[2];
     }
+    //printf(" -> (%d, %d, %d)\n", ix, iy, iz);
 
     return getBoxFromTuple(boxes, ix, iy, iz);
 }

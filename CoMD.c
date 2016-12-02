@@ -205,6 +205,12 @@ SimFlat* initSimulation(Command cmd)
     sim->domain = initDecomposition(
             cmd.xproc, cmd.yproc, cmd.zproc, globalExtent);
 
+    //printf("localMin = (%f, %f, %f)\n", sim->domain->localMin[0], sim->domain->localMin[1], sim->domain->localMin[2]) ;
+    //printf("localMax = (%f, %f, %f)\n", sim->domain->localMax[0], sim->domain->localMax[1], sim->domain->localMax[2]) ;
+
+    //printf("globalMin = (%f, %f, %f)\n", sim->domain->globalMin[0], sim->domain->globalMin[1], sim->domain->globalMin[2]) ;
+    //printf("globalMax = (%f, %f, %f)\n", sim->domain->globalMax[0], sim->domain->globalMax[1], sim->domain->globalMax[2]) ;
+    
     sim->boxes = initLinkCells(sim->domain, sim->pot->cutoff);
     sim->atoms = initAtoms(sim->boxes);
 
