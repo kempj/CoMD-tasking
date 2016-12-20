@@ -154,25 +154,6 @@ void redistributeAtoms(SimFlat* sim)
 
     startTimer(atomHaloTimer);
     //haloExchange(sim->atomExchange, sim);
-    
-    /*
-    int sizeX = sim->boxes->localMax[0];
-    int sizeY = sim->boxes->localMax[1];
-    int sizeZ = sim->boxes->localMax[2];
-
-    for(int iBox=0; iBox<sim->boxes->nTotalBoxes; ++iBox) {
-        int ix, iy, iz;
-        getTuple(sim->boxes, iBox, &ix, &iy, &iz);
-        if(ix == sizeX - 1) {
-        }
-        if(iy == sizeY - 1) {
-        }
-        if(iz == sizeZ - 1) {
-        }
-
-    }
-    */
-
     //TODO: zero out halo buffers
     stopTimer(atomHaloTimer);
 
