@@ -158,7 +158,6 @@ int getHaloNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
     //const real_t* localMax = boxes->localMax; // alias
     const int* gridSize = boxes->gridSize; // alias
 
-
     int count = 0;
     for (int i=ix-1; i<=ix+1; i++) {
         for (int j=iy-1; j<=iy+1; j++) {
@@ -307,22 +306,31 @@ void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes,
     return;
 }
 
-/// \details
-/// This is the first step in returning data structures to a consistent
-/// state after the atoms move each time step.  First we discard all
-/// atoms in the halo link cells.  These are all atoms that are
-/// currently stored on other ranks and so any information we have about
-/// them is stale.  Next, we move any atoms that have crossed link cell
-/// boundaries into their new link cells.  It is likely that some atoms
-/// will be moved into halo link cells.  Since we have deleted halo
-/// atoms from other tasks, it is clear that any atoms that are in halo
-/// cells at the end of this routine have just transitioned from local
-/// to halo atoms.  Such atom must be sent to other tasks by a halo
-/// exchange to avoid being lost.
-/// \see redistributeAtoms
+int getLocalHaloTuple(LinkCell *boxes, int iBox) {
+    int x,y,z;
+    getTuple(boxes, iBox, &x, &y, &z);
+    int haloX = x;
+    int haloY = y;
+    int haloZ = z;
 
-//atomsBuffer should only be used in the tasks created by this function. The first set output to the
-//buffer, the second set of tasks take the buffer as input and output back to the original array.
+    const int* gridSize = boxes->gridSize; // alias
+
+    //if iBox has a halo cell as a neighbor
+    if(x == 0 ) 
+        haloX = gridSize[0];            
+    if(y == 0)
+        haloY = gridSize[1];
+    if(z == 0)
+        haloZ = gridSize[2];
+    if(x == gridSize[0] - 1)
+        haloX = -1;
+    if(y == gridSize[1] - 1)
+        haloY = -1;
+    if(z == gridSize[2] - 1)
+        haloZ = -1;
+
+    return getBoxFromTuple(boxes, haloX, haloY, haloZ);
+}
 
 //The correctness of the task dependencies here depends on the assumption that there are no
 //dependencies between this function and the function that last wrote the position
@@ -359,7 +367,6 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                              atomR[neighbors[21]*MAXATOMS], atomR[neighbors[22]*MAXATOMS], atomR[neighbors[23]*MAXATOMS], \
                              atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
         {
-            //resetting the number of atoms here for now.
             boxesBuffer->nAtoms[iBox] = 0;
 
             for(int i=0; i<27; i++) {
@@ -376,38 +383,44 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
         }
     }
 
-    
-    //Here is where MPI would do a send on the in, and a recv on the out.
-    //send halo cell from buffer to (neighbors) main buffer
-//    for(int iBox=boxes->nLocalBoxes; iBox<boxes->nTotalBoxes; ++iBox) {
-//        int haloBox = 0;
-//#pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
-//                 depend(out: atomR[haloBox*MAXATOMS])
-//        {
-//        }
-//    }
-
     //This loop copies the cells from the buffer back to the main buffer.
     for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
+        //if I add another in dependency (the corresponding halo cell) I can avoid creating a task
+        //for each halo cell.
+        
+        int haloBox = getLocalHaloTuple(boxes, iBox);
+
+        if(haloBox != iBox) {
+#pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS], atomsBufferR[haloBox*MAXATOMS]) \
+                 depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
+                             atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
+            {
+            }
+        } else {
 #pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
                              atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
-        {
-            int atomOffset = iBox*MAXATOMS;
-            for(int atomNum = atomOffset; atomNum < atomOffset + boxesBuffer->nAtoms[iBox]; atomNum++) {
-                copyAtom(atomsBuffer, atoms, atomNum, iBox, atomNum, iBox);
+            {
+                int atomOffset = iBox*MAXATOMS;
+                for(int atomNum = atomOffset; atomNum < atomOffset + boxesBuffer->nAtoms[iBox]; atomNum++) {
+                    copyAtom(atomsBuffer, atoms, atomNum, iBox, atomNum, iBox);
+                }
+                boxes->nAtoms[iBox] = boxesBuffer->nAtoms[iBox];
             }
-            boxes->nAtoms[iBox] = boxesBuffer->nAtoms[iBox];
-            //if has halo neighbor, check correct cell, convert and move it.
-            //then zero out halo buffer.
         }
     }
+
     //translate and move halo cells to correct cell in Original buffer.
     for(int iBox=boxes->nLocalBoxes; iBox<boxes->nTotalBoxes; ++iBox) {
         //get tuple
+        int x,y,z;
+        getTuple(boxes, iBox, &x, &y, &z);
+        if(x == boxes->gridSize[0]) {
+        }
         //translate to new coords
         //get box number for new atom(coords->box or tuple->box)
         //append atom to new box.
+        
     }
 
 }
