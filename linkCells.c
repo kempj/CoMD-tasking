@@ -332,16 +332,21 @@ int getLocalHaloTuple(LinkCell *boxes, int iBox) {
     return getBoxFromTuple(boxes, haloX, haloY, haloZ);
 }
 
+//This copies a cell from one box buffer to another.
+void copyCell(LinkCell *sourceBoxes, LinkCell *destBoxes, Atoms *sourceAtoms, Atoms *destAtoms, int iBox)
+{
+    const int atomOffset = iBox*MAXATOMS;
+    const int numAtoms = sourceBoxes->nAtoms[iBox];
+    for(int atomNum = atomOffset; atomNum < atomOffset + numAtoms; atomNum++) {
+        copyAtom(sourceAtoms, destAtoms, atomNum, iBox, atomNum, iBox);
+    }
+    destBoxes->nAtoms[iBox] = sourceBoxes->nAtoms[iBox];
+}
+
 //The correctness of the task dependencies here depends on the assumption that there are no
 //dependencies between this function and the function that last wrote the position
 void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms* atomsBuffer)
 {
-    //emptyHaloCells(boxes);
-    //for (int ii=boxes->nLocalBoxes; ii<boxes->nTotalBoxes; ++ii) {
-//#pragma omp task depend(inout: boxes->nAtoms[ii])
-//        boxes->nAtoms[ii] = 0;
-//    }
-
     real3  *atomF = atoms->f;
     real3  *atomR = atoms->r;
     real_t *atomU = atoms->U;
@@ -350,8 +355,6 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
     real3  *atomsBufferR = atomsBuffer->r;
 
     int neighbors[27];
-    //TODO: Extend this to halo cells as well.
-    //for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
     for(int iBox=0; iBox<boxes->nTotalBoxes; ++iBox) {
         for(int nBox=0; nBox < 27; nBox++) {
             neighbors[nBox] = boxes->nbrBoxes[iBox][nBox];
@@ -385,9 +388,6 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
 
     //This loop copies the cells from the buffer back to the main buffer.
     for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
-        //if I add another in dependency (the corresponding halo cell) I can avoid creating a task
-        //for each halo cell.
-        
         int haloBox = getLocalHaloTuple(boxes, iBox);
 
         if(haloBox != iBox) {
@@ -395,18 +395,15 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
                              atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
             {
+                copyCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
+
+                //TODO: keep track of the total number of atoms boxes->nAtoms
             }
         } else {
 #pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
                              atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
-            {
-                int atomOffset = iBox*MAXATOMS;
-                for(int atomNum = atomOffset; atomNum < atomOffset + boxesBuffer->nAtoms[iBox]; atomNum++) {
-                    copyAtom(atomsBuffer, atoms, atomNum, iBox, atomNum, iBox);
-                }
-                boxes->nAtoms[iBox] = boxesBuffer->nAtoms[iBox];
-            }
+            copyCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
         }
     }
 
