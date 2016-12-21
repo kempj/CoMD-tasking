@@ -376,10 +376,18 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
         }
     }
 
-    //TODO: get the atoms from the halo buffers into the correct cell.
+    
+    //Here is where MPI would do a send on the in, and a recv on the out.
+    //send halo cell from buffer to (neighbors) main buffer
+//    for(int iBox=boxes->nLocalBoxes; iBox<boxes->nTotalBoxes; ++iBox) {
+//        int haloBox = 0;
+//#pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
+//                 depend(out: atomR[haloBox*MAXATOMS])
+//        {
+//        }
+//    }
 
-    //This loop copies the cells from the buffer back to the main buffer.
-    //for(int iBox=0; iBox<boxes->nTotalBoxes; ++iBox) {
+    //This loop copies the cells from the buffer (and the halo cells?) back to the main buffer.
     for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
 #pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
@@ -390,36 +398,11 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                 copyAtom(atomsBuffer, atoms, atomNum, iBox, atomNum, iBox);
             }
             boxes->nAtoms[iBox] = boxesBuffer->nAtoms[iBox];
-            //while( boxesBuffer->nAtoms[iBox] > 0 ) {
-            //    moveAtom(boxesBuffer, boxes, atomsBuffer, atoms, boxesBuffer->nAtoms[iBox]-1, iBox, iBox);
-            //}
-        }
-    }
-    //TODO: extend this to the halo buffer cells.
-    for(int iBox=boxes->nLocalBoxes; iBox<boxes->nTotalBoxes; ++iBox) {
-#pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
-                 depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
-                             atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
-        {
-            for(int i = 0; i < 27; i++) {
-                if( boxes->nbrBoxes[iBox][i] != iBox) {
-                    //printf("Neighbors for halo box %d: ", iBox);
-                    //printf(" %d", boxes->nbrBoxes[iBox][i]);
-                    //printf("\n");
-                }
-            }
-            //Calculate 
+            //if has halo neighbor, check correct cell, convert and move it.
+            //then zero out halo buffer.
         }
     }
 
-//    for (int iBox=boxes->nLocalBoxes; iBox < boxes->nTotalBoxes; ++iBox) {
-//#pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
-//                 depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
-//                             atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
-//        {
-            //boxes->nAtoms[iBox] = 0;
-//        }
-//    }
 }
 
 /// \return The largest number of atoms in any link cell.

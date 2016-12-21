@@ -154,7 +154,6 @@ void redistributeAtoms(SimFlat* sim)
 
     startTimer(atomHaloTimer);
     //haloExchange(sim->atomExchange, sim);
-    //TODO: zero out halo buffers
     stopTimer(atomHaloTimer);
 
     for(int iBox=0; iBox<sim->boxes->nTotalBoxes; ++iBox) {
