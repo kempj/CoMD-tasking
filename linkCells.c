@@ -387,7 +387,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
 //        }
 //    }
 
-    //This loop copies the cells from the buffer (and the halo cells?) back to the main buffer.
+    //This loop copies the cells from the buffer back to the main buffer.
     for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
 #pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
@@ -401,6 +401,13 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
             //if has halo neighbor, check correct cell, convert and move it.
             //then zero out halo buffer.
         }
+    }
+    //translate and move halo cells to correct cell in Original buffer.
+    for(int iBox=boxes->nLocalBoxes; iBox<boxes->nTotalBoxes; ++iBox) {
+        //get tuple
+        //translate to new coords
+        //get box number for new atom(coords->box or tuple->box)
+        //append atom to new box.
     }
 
 }
