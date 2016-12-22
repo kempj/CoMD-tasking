@@ -297,9 +297,7 @@ void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes,
     if (ni) {
         copyAtom(srcAtoms, srcAtoms, ni, srcBox, srcPosition, srcBox);
     }
-    //printf("distBoxes->nLocalBoxes = %d\n", destBoxes->nLocalBoxes);
     if (destBox > destBoxes->nLocalBoxes) {
-        //printf("moving atoms to halo cell %d\n", destBox);
         --destAtoms->nLocal;
         --srcAtoms->nLocal;
     }
@@ -389,15 +387,25 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
     //This loop copies the cells from the buffer back to the main buffer.
     for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
         int haloBox = getLocalHaloTuple(boxes, iBox);
-
         if(haloBox != iBox) {
 #pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS], atomsBufferR[haloBox*MAXATOMS]) \
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
                              atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
             {
                 copyCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
-
-                //TODO: keep track of the total number of atoms boxes->nAtoms
+                int numAtoms = boxes->nAtoms[iBox];
+                int numHaloAtoms = boxesBuffer->nAtoms[haloBox];
+                for(int atomNum = 0; atomNum< numHaloAtoms; atomNum++) {
+                    copyAtom(atomsBuffer, atoms, atomNum, haloBox, numAtoms+atomNum, iBox);
+                    boxes->nAtoms[iBox]++;
+                    for(int i = 0; i < 3; i++) {
+                        if(atoms->r[iBox][i] > boxes->localMax[i]) {
+                            atoms->r[iBox][i] -= boxes->localMax[i];
+                        } else if(atoms->r[iBox][i] < boxes->localMin[i]) {
+                            atoms->r[iBox][i] += boxes->localMax[i];
+                        }
+                    } 
+                }
             }
         } else {
 #pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
@@ -406,20 +414,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
             copyCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
         }
     }
-
-    //translate and move halo cells to correct cell in Original buffer.
-    for(int iBox=boxes->nLocalBoxes; iBox<boxes->nTotalBoxes; ++iBox) {
-        //get tuple
-        int x,y,z;
-        getTuple(boxes, iBox, &x, &y, &z);
-        if(x == boxes->gridSize[0]) {
-        }
-        //translate to new coords
-        //get box number for new atom(coords->box or tuple->box)
-        //append atom to new box.
         
-    }
-
 }
 
 /// \return The largest number of atoms in any link cell.
@@ -441,16 +436,16 @@ int maxOccupancy(LinkCell* boxes)
 /// Copy atom iAtom in link cell iBox to atom jAtom in link cell jBox.
 /// Any data at jAtom, jBox is overwritten.  This routine can be used to
 /// re-order atoms within a link cell.
-void copyAtom(Atoms* in, Atoms* out, int iAtom, int iBox, int jAtom, int jBox)
+void copyAtom(Atoms* in, Atoms* out, int inAtom, int inBox, int outAtom, int outBox)
 {
-    const int iOff = MAXATOMS*iBox+iAtom;
-    const int jOff = MAXATOMS*jBox+jAtom;
-    out->gid[jOff] = in->gid[iOff];
-    out->iSpecies[jOff] = in->iSpecies[iOff];
-    memcpy(out->r[jOff], in->r[iOff], sizeof(real3));
-    memcpy(out->p[jOff], in->p[iOff], sizeof(real3));
-    memcpy(out->f[jOff], in->f[iOff], sizeof(real3));
-    memcpy(out->U+jOff,  in->U+iOff,  sizeof(real_t));
+    const int inOff = MAXATOMS*inBox+inAtom;
+    const int outOff = MAXATOMS*outBox+outAtom;
+    out->gid[outOff] = in->gid[inOff];
+    out->iSpecies[outOff] = in->iSpecies[inOff];
+    memcpy(out->r[outOff], in->r[inOff], sizeof(real3));
+    memcpy(out->p[outOff], in->p[inOff], sizeof(real3));
+    memcpy(out->f[outOff], in->f[inOff], sizeof(real3));
+    memcpy(out->U+outOff,  in->U+inOff,  sizeof(real_t));
 }
 
 /// Get the index of the link cell that contains the specified
