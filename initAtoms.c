@@ -151,10 +151,12 @@ void setVcm()
         r3ReductionArray[0][0] = 0;
         r3ReductionArray[0][1] = 0;
         r3ReductionArray[0][2] = 0;
+        //printf("vInit = %f, %f, %f\n:", vInit[0], vInit[1], vInit[2]);
+        //correct
     }
 
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend( in: vInit[0])
+#pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend(in: vInit[0])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iSpecies = sim->atoms->iSpecies[iOff];
             real_t mass = sim->species[iSpecies].mass;
@@ -170,7 +172,7 @@ void setTemperature(real_t temperature)
 {
     real3 *atomP = sim->atoms->p;
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task firstprivate(iBox) depend(out: atomP[iBox*MAXATOMS])
+#pragma omp task depend(out: atomP[iBox*MAXATOMS])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iType = sim->atoms->iSpecies[iOff];
             real_t mass = sim->species[iType].mass;
@@ -219,6 +221,8 @@ void randomDisplacements(real_t delta)
             sim->atoms->r[iOff][0] += (2.0*lcg61(&seed)-1.0) * delta;
             sim->atoms->r[iOff][1] += (2.0*lcg61(&seed)-1.0) * delta;
             sim->atoms->r[iOff][2] += (2.0*lcg61(&seed)-1.0) * delta;
+
+            //printf("In random displacements, position = %F, %f, %F\n", sim->atoms->r[iOff][0], sim->atoms->r[iOff][1], sim->atoms->r[iOff][2]);
         }
     }
 }

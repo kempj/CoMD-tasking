@@ -378,6 +378,8 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                     if(correctBox == iBox) {
                         copyAtom(atoms, atomsBuffer, atomNum, neighborBox, atomOffset + boxesBuffer->nAtoms[iBox], iBox);
                         boxesBuffer->nAtoms[iBox]++;
+                        //if(iBox > boxes->nLocalBoxes) 
+                        //    printf("moving atom into halo cell %d from cell %d\n", iBox, neighborBox);
                     }
                 }
             }
@@ -396,9 +398,10 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                 int numAtoms = boxes->nAtoms[iBox];
                 int numHaloAtoms = boxesBuffer->nAtoms[haloBox];
                 for(int atomNum = 0; atomNum< numHaloAtoms; atomNum++) {
+                    //printf("moving atom into cell %d from halo cell %d\n", iBox, haloBox);
                     copyAtom(atomsBuffer, atoms, atomNum, haloBox, numAtoms+atomNum, iBox);
                     boxes->nAtoms[iBox]++;
-                    for(int i = 0; i < 3; i++) {
+                    for(int i=0; i<3; i++) {
                         if(atoms->r[iBox][i] > boxes->localMax[i]) {
                             atoms->r[iBox][i] -= boxes->localMax[i];
                         } else if(atoms->r[iBox][i] < boxes->localMin[i]) {
