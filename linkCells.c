@@ -117,9 +117,9 @@ LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
         getLocalNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
     }
     //TODO: make sure this isn't used and remove.
-    for(int iBox=ll->nLocalBoxes; iBox<ll->nTotalBoxes; ++iBox) {
-        getHaloNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
-    }
+    //for(int iBox=ll->nLocalBoxes; iBox<ll->nTotalBoxes; ++iBox) {
+    //    getHaloNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
+    //}
 
     return ll;
 }
@@ -138,18 +138,18 @@ void destroyLinkCells(LinkCell** boxes)
 
 void haloToLocalCell(int *x, int *y, int *z, int *gridSize)
 {
-    if(*x == 0 ) 
-        *x = gridSize[0];            
-    if(*y == 0)
-        *y = gridSize[1];
-    if(*z == 0)
-        *z = gridSize[2];
-    if(*x == gridSize[0] - 1)
-        *x = -1;
-    if(*y == gridSize[1] - 1)
-        *y = -1;
-    if(*z == gridSize[2] - 1)
-        *z = -1;
+    if(*x == -1 ) 
+        *x = gridSize[0]-1;            
+    if(*y == -1)
+        *y = gridSize[1]-1;
+    if(*z == -1)
+        *z = gridSize[2]-1;
+    if(*x == gridSize[0])
+        *x = 0;
+    if(*y == gridSize[1])
+        *y = 0;
+    if(*z == gridSize[2])
+        *z = 0;
 }
 
 //for shared memory only, takes a halo cell and returns the local cell that it corresponds to.
@@ -167,14 +167,17 @@ int getLocalNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
     int ix, iy, iz;
     getTuple(boxes, iBox, &ix, &iy, &iz);
 
+    printf("box %d has neighbors: ", iBox);
     int count = 0;
     for (int i=ix-1; i<=ix+1; i++) {
         for (int j=iy-1; j<=iy+1; j++) {
             for (int k=iz-1; k<=iz+1; k++) {
                 nbrBoxes[count++] = getLocalHaloTuple(boxes, getBoxFromTuple(boxes,i,j,k));
+                printf("%d ", nbrBoxes[count-1]);
             }
         }
     }
+    printf("\n");
     return count;
 }
 
@@ -397,40 +400,16 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
             }
         }
     }
+    //At this point, the buffer is the correct output for the iteration.
+    //TODO: set up some sort of pointer swap so the tasks that just copy back aren't necessary.
 
     //This loop copies the cells from the buffer back to the main buffer.
-    //FIXME: this is incorrect. 
     for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
-        int haloBox = getLocalHaloTuple(boxes, iBox);
-        if(haloBox != iBox) {
-#pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS], atomsBufferR[haloBox*MAXATOMS]) \
-                 depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
-                             atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
-            {
-                copyCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
-                int numAtoms = boxes->nAtoms[iBox];
-                int numHaloAtoms = boxesBuffer->nAtoms[haloBox];
-                for(int atomNum = 0; atomNum< numHaloAtoms; atomNum++) {
-                    //printf("moving atom into cell %d from halo cell %d\n", iBox, haloBox);
-                    copyAtom(atomsBuffer, atoms, atomNum, haloBox, numAtoms+atomNum, iBox);
-                    boxes->nAtoms[iBox]++;
-                    for(int i=0; i<3; i++) {
-                        if(atoms->r[iBox][i] > boxes->localMax[i]) {
-                            atoms->r[iBox][i] -= boxes->localMax[i];
-                        } else if(atoms->r[iBox][i] < boxes->localMin[i]) {
-                            atoms->r[iBox][i] += boxes->localMax[i];
-                        }
-                    } 
-                }
-            }
-        } else {
 #pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
                              atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
-            copyCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
-        }
+        copyCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
     }
-        
 }
 
 /// \return The largest number of atoms in any link cell.
