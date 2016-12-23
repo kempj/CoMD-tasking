@@ -180,7 +180,8 @@ void redistributeAtoms(SimFlat* s)
 //        printf("\n");
 //    }
 
-    for(int iBox=0; iBox<s->boxes->nTotalBoxes; ++iBox) {
+    //for(int iBox=0; iBox<s->boxes->nTotalBoxes; ++iBox) {
+    for(int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS])
         sortAtomsInCell(s->atoms, s->boxes, iBox);
     }

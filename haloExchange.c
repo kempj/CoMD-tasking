@@ -295,7 +295,7 @@ void exchangeData(HaloExchange* haloExchange, void* data, int iAxis)
 
     int nRecvM, nRecvP;
 
-    printf("sending %d and receiving %d\n", nSendM, nSendP);
+    //printf("sending %d and receiving %d\n", nSendM, nSendP);
     startTimer(commHaloTimer);
     nRecvP = sendReceiveParallel(sendBufM, nSendM, nbrRankM, recvBufP, haloExchange->bufCapacity, nbrRankP);
     nRecvM = sendReceiveParallel(sendBufP, nSendP, nbrRankP, recvBufM, haloExchange->bufCapacity, nbrRankM);

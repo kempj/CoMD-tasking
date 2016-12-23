@@ -109,7 +109,10 @@ int main(int argc, char** argv)
     {
 #pragma omp single
     {
-    SimFlat* sim = initSimulation(cmd);
+    //Not sure why this was local.
+    //SimFlat* sim = initSimulation(cmd);
+    
+    sim = initSimulation(cmd);
     printSimulationDataYaml(yamlFile, sim);
     printSimulationDataYaml(screenOut, sim);
 
@@ -205,12 +208,6 @@ SimFlat* initSimulation(Command cmd)
     sim->domain = initDecomposition(
             cmd.xproc, cmd.yproc, cmd.zproc, globalExtent);
 
-    //printf("localMin = (%f, %f, %f)\n", sim->domain->localMin[0], sim->domain->localMin[1], sim->domain->localMin[2]) ;
-    //printf("localMax = (%f, %f, %f)\n", sim->domain->localMax[0], sim->domain->localMax[1], sim->domain->localMax[2]) ;
-
-    //printf("globalMin = (%f, %f, %f)\n", sim->domain->globalMin[0], sim->domain->globalMin[1], sim->domain->globalMin[2]) ;
-    //printf("globalMax = (%f, %f, %f)\n", sim->domain->globalMax[0], sim->domain->globalMax[1], sim->domain->globalMax[2]) ;
-    
     sim->boxes = initLinkCells(sim->domain, sim->pot->cutoff);
     sim->atoms = initAtoms(sim->boxes);
 
@@ -219,8 +216,8 @@ SimFlat* initSimulation(Command cmd)
 
     createFccLattice(cmd.nx, cmd.ny, cmd.nz, latticeConstant, sim);
 
-    reductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(double));
-    r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes, sizeof(real3));
+    reductionArray = comdCalloc(sim->boxes->nTotalBoxes + 16, sizeof(double));
+    r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes + 16, sizeof(real3));
 
     setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
     randomDisplacements(cmd.initialDelta);//inout atomR, in atomP
@@ -228,14 +225,14 @@ SimFlat* initSimulation(Command cmd)
     sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
 
     startTimer(redistributeTimer);
-    redistributeAtoms(sim);
+    redistributeAtoms(sim);//inout: atomP, atomR
     stopTimer(redistributeTimer);
 
     startTimer(computeForceTimer);
-    computeForce(sim);
+    computeForce(sim);//in R, U, out: F
     stopTimer(computeForceTimer);
 
-    kineticEnergy(sim);
+    kineticEnergy(sim);//in: atomP, out: KE
 
     return sim;
 }
