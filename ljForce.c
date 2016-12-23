@@ -158,21 +158,20 @@ void boxForce(int iBox, SimFlat *s)
     real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
     real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
 
-    int nNbrBoxes = 27;
+    int x, y, z;
+    getTuple(s->boxes, iBox, &x, &y, &z);
+
     int nIBox = s->boxes->nAtoms[iBox];
     double ePot = 0;
-    for(int jTmp=0; jTmp < nNbrBoxes; jTmp++) {
+    for(int jTmp=0; jTmp < 27 ; jTmp++) {
         int jBox  = s->boxes->nbrBoxes[iBox][jTmp];
         int nJBox = s->boxes->nAtoms[jBox];
         for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
-            //printf("changing force for atom %d in box %d\n", iOff, iBox);
             for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
-                //printf("\tbased on interaction with atom %d of box %d\n", jOff, jBox);
                 real3 dr;
                 real_t r2 = 0.0;
                 for(int m=0; m<3; m++) {
                     dr[m] = s->atoms->r[iOff][m] - s->atoms->r[jOff][m];
-                    //printf("dr[%d] = %f\n", m, dr[m]);
                     r2+=dr[m]*dr[m];
                 }
                 if(r2<=rCut2 && r2>0.0) {
@@ -181,20 +180,15 @@ void boxForce(int iBox, SimFlat *s)
                     real_t eLocal = r6 * (r6 - 1.0) - eShift;
                     s->atoms->U[iOff] += 0.5*eLocal;
                     ePot += 0.5*eLocal;
-                    //printf("eLocal = %f\n", eLocal);
 
                     real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
-                    //printf("changing force for atom %d in box %d based on interaction with atom %d of box %d\n", iOff, iBox, jOff, jBox);
-                    //printf("(%f, %f, %f)  ->  ", s->atoms->f[iOff][0], s->atoms->f[iOff][1], s->atoms->f[iOff][2]);
                     for (int m=0; m<3; m++) {
                         s->atoms->f[iOff][m] -= dr[m]*fr;
                     }
-                    //printf("(%f, %f, %f) \n", s->atoms->f[iOff][0], s->atoms->f[iOff][1], s->atoms->f[iOff][2]);
                 }
             }
         }
     }
-    //printf("reductionArray[%d] = %f\n", iBox, ePot);
     reductionArray[iBox] = ePot;
 }
 

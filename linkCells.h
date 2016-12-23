@@ -45,13 +45,9 @@ int getBoxFromCoord(LinkCell* boxes, real_t rr[3]);
 
 int getBoxFromTuple(LinkCell* boxes, int x, int y, int z);
 
-//void moveAtom(LinkCell* boxes, struct AtomsSt* atoms, struct AtomsSt* buffer, int iId, int iBox, int jBox);
 void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes, 
                struct AtomsSt* srcAtoms, struct AtomsSt* destAtoms, 
                int srcPosition, int srcBox, int destBox);
-
-/// Update link cell data structures when the atoms have moved.
-//void updateLinkCells(LinkCell* boxes, struct AtomsSt* atoms);
 
 void updateLinkCells( LinkCell* boxes, LinkCell* boxesBuffer, 
                       struct AtomsSt* atoms, struct AtomsSt* buffer);

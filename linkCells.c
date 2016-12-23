@@ -76,9 +76,7 @@
 #define   MAX(A,B) ((A) > (B) ? (A) : (B))
 
 static void copyAtom(Atoms* in, Atoms* out, int iAtom, int iBox, int jAtom, int jBox);
-//static int getBoxFromCoord(LinkCell* boxes, real_t rr[3]);
 static void emptyHaloCells(LinkCell* boxes);
-static void getTuple(LinkCell* boxes, int iBox, int* ixp, int* iyp, int* izp);
 
 LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
 {
@@ -378,7 +376,6 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                              atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
         {   //This task pulls all atoms that belong in cell iBox from multiple cells in the main buffer to cell iBox in the secondary buffer
             boxesBuffer->nAtoms[iBox] = 0;
-
             int firstCopy = 0;
             for(int i=0; i<27; i++) {
                 int neighborBox = boxes->nbrBoxes[iBox][i];
@@ -391,17 +388,11 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                             tempPosition[i] = atoms->r[neighborBox*MAXATOMS + atomNum][i];
                             if(tempPosition[i] >= boxes->localMax[i]) {
                                 tempPosition[i] -= boxes->localMax[i];
-                                //printf("shifting atom %d in box %d from %f by %f to %f in dimension %d\n", atomNum, neighborBox, 
-                                //        atoms->r[neighborBox*MAXATOMS + atomNum][i], -boxes->localMax[i], tempPosition[i], i);
                             } else if(tempPosition[i] <= boxes->localMin[i]) {
                                 tempPosition[i] += boxes->localMax[i];
                             }
                         }
-                        //Write to secondary buffer if Atom belongs in iBox
-                        //int correctBox = getBoxFromCoord(boxes, tempPosition);
-                        //printf("atom %d in box %d belongs in box %d\n", atomNum, iBox, correctBox);
                         if(iBox == getBoxFromCoord(boxes, tempPosition)) {
-                            //printf("moving the atom\n");
                             copyAtom(atoms, atomsBuffer, atomNum, neighborBox, boxesBuffer->nAtoms[iBox], iBox);
                             for(int i=0; i<3; i++) {
                                 atomsBuffer->r[iBox*MAXATOMS + boxesBuffer->nAtoms[iBox]][i] = tempPosition[i];
