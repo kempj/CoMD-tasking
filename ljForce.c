@@ -149,6 +149,8 @@ void ljPrint(FILE* file, BasePotential* pot)
 //calculates the force on atoms in a box.
 void boxForce(int iBox, SimFlat *s)
 {
+    const int* gridSize = s->boxes->gridSize;
+    const real_t* localMax = s->boxes->localMax;
     LjPotential* pot = (LjPotential *) s->pot;
     real_t rCut = pot->cutoff;
     real_t sigma = pot->sigma;
@@ -158,37 +160,67 @@ void boxForce(int iBox, SimFlat *s)
     real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
     real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
 
-    int x, y, z;
-    getTuple(s->boxes, iBox, &x, &y, &z);
+    int ix = iBox % gridSize[0];
+    int tmpBox = iBox / gridSize[0];
+    int iy = tmpBox % gridSize[1];
+    int iz = tmpBox / gridSize[1];
 
+
+    real3 offset;
     int nIBox = s->boxes->nAtoms[iBox];
     double ePot = 0;
-    for(int jTmp=0; jTmp < 27 ; jTmp++) {
-        int jBox  = s->boxes->nbrBoxes[iBox][jTmp];
-        int nJBox = s->boxes->nAtoms[jBox];
-        for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
-            for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
-                real3 dr;
-                real_t r2 = 0.0;
-                for(int m=0; m<3; m++) {
-                    dr[m] = s->atoms->r[iOff][m] - s->atoms->r[jOff][m];
-                    r2+=dr[m]*dr[m];
-                }
-                if(r2<=rCut2 && r2>0.0) {
-                    r2 = 1.0/r2;
-                    real_t r6 = s6 * (r2*r2*r2);
-                    real_t eLocal = r6 * (r6 - 1.0) - eShift;
-                    s->atoms->U[iOff] += 0.5*eLocal;
-                    ePot += 0.5*eLocal;
+    //for(int jTmp=0; jTmp < 27 ; jTmp++) {
+    for(int i=ix-1; i<=ix+1; i++) {
+        offset[0] = 0;
+        if(i == gridSize[0]) offset[0] = localMax[0];
+        if(i == -1         ) offset[0] =-localMax[0];
+        for(int j=iy-1; j<=iy+1; j++) {
+            offset[1] = 0;
+            if(j == gridSize[1]) offset[1] = localMax[1];
+            if(j == -1         ) offset[1] =-localMax[1];
+            for(int k=iz-1; k<=iz+1; k++) {
+                offset[2] = 0;
+                if(k == gridSize[2]) offset[2] = localMax[2];
+                if(k == -1         ) offset[2] =-localMax[2];
+                
+                int realJBox = getBoxFromTuple(s->boxes, i, j, k);
+                int jBox = getLocalHaloTuple(s->boxes, realJBox);
+                //int jBox = ix + gridSize[0]*iy + gridSize[0]*gridSize[1]*iz;
+                int nJBox = s->boxes->nAtoms[jBox];
+                for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
+                    //printf("calculating force for atom %d of %d, in box %d\n", iOff-iBox*MAXATOMS, nIBox, iBox);
+                    //printf("\tfor each of %d atoms in box %d (actually %d)\n", nJBox, jBox, realJBox);
+                    for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
+                        //printf("\tbased on interaction with atom %d of box %d\n", jOff-jBox*MAXATOMS, jBox);
+                        real3 dr;
+                        real_t r2 = 0.0;
+                        for(int m=0; m<3; m++) {
+                            dr[m] = s->atoms->r[iOff][m] - (s->atoms->r[jOff][m] + offset[m]);
+                            //printf("dr[%d] = %f - %f ", m, s->atoms->r[iOff][m], s->atoms->r[jOff][m]);
+                            //if(offset[m] != 0)
+                                //printf("+ %f = %f\n", offset[m], dr[m]);
+                            r2+=dr[m]*dr[m];
+                        }
+                        if(r2<=rCut2 && r2>0.0) {
+                            r2 = 1.0/r2;
+                            real_t r6 = s6 * (r2*r2*r2);
+                            real_t eLocal = r6 * (r6 - 1.0) - eShift;
+                            s->atoms->U[iOff] += 0.5*eLocal;
+                            ePot += 0.5*eLocal;
 
-                    real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
-                    for (int m=0; m<3; m++) {
-                        s->atoms->f[iOff][m] -= dr[m]*fr;
+                            real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
+                            //printf("(%f, %f, %f)  ->  ", s->atoms->f[iOff][0], s->atoms->f[iOff][1], s->atoms->f[iOff][2]);
+                            for (int m=0; m<3; m++) {
+                                s->atoms->f[iOff][m] -= dr[m]*fr;
+                            }
+                            //printf("(%f, %f, %f) \n", s->atoms->f[iOff][0], s->atoms->f[iOff][1], s->atoms->f[iOff][2]);
+                        }
                     }
                 }
             }
         }
     }
+    //printf("reductionArray[%d] = %f\n", iBox, reductionArray[iBox]);
     reductionArray[iBox] = ePot;
 }
 
@@ -224,15 +256,6 @@ int ljForce(SimFlat* s)
             boxForce(iBox, s);
         }
     }
-    //The original zeroes out all blocks, not sure if it's necessary.
-    //for(int iBox=s->boxes->nLocalBoxes; iBox < s->boxes->nTotalBoxes; iBox++) {
-//#pragma omp task depend(inout: atomU[iBox*MAXATOMS], atomF[iBox*MAXATOMS])
-//        for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
-//            zeroReal3(s->atoms->f[ii]);
-//            s->atoms->U[ii] = 0.;
-//        }
-//    }
-    //ompReduce(reductionArray, s->boxes->nTotalBoxes);
     ompReduce(reductionArray, s->boxes->nLocalBoxes);
 
     real_t *ePotential = &(s->ePotential);

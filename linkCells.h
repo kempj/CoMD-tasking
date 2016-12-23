@@ -55,5 +55,6 @@ void updateLinkCells( LinkCell* boxes, LinkCell* boxesBuffer,
 int maxOccupancy(LinkCell* boxes);
 
 void getTuple(LinkCell* boxes, int iBox, int* ixp, int* iyp, int* izp);
+int getLocalHaloTuple(LinkCell *boxes, int iBox);
 
 #endif
