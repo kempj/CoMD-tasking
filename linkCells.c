@@ -116,10 +116,6 @@ LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
     for(int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
         getLocalNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
     }
-    //TODO: make sure this isn't used and remove.
-    //for(int iBox=ll->nLocalBoxes; iBox<ll->nTotalBoxes; ++iBox) {
-    //    getHaloNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
-    //}
 
     return ll;
 }
@@ -366,7 +362,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
     real3  *atomsBufferR = atomsBuffer->r;
 
     int neighbors[27];
-    for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
+    for(int iBox=0; iBox<boxes->nLocalBoxes; iBox++) {
         for(int nBox=0; nBox < 27; nBox++) {
             neighbors[nBox] = boxes->nbrBoxes[iBox][nBox];
         }
@@ -395,6 +391,8 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                             tempPosition[i] = atoms->r[neighborBox*MAXATOMS + atomNum][i];
                             if(tempPosition[i] >= boxes->localMax[i]) {
                                 tempPosition[i] -= boxes->localMax[i];
+                                //printf("shifting atom %d in box %d from %f by %f to %f in dimension %d\n", atomNum, neighborBox, 
+                                //        atoms->r[neighborBox*MAXATOMS + atomNum][i], -boxes->localMax[i], tempPosition[i], i);
                             } else if(tempPosition[i] <= boxes->localMin[i]) {
                                 tempPosition[i] += boxes->localMax[i];
                             }

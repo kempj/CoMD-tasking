@@ -222,7 +222,7 @@ SimFlat* initSimulation(Command cmd)
     setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
     randomDisplacements(cmd.initialDelta);//inout atomR, in atomP
 
-    sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
+    //sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
 
     startTimer(redistributeTimer);
     redistributeAtoms(sim);//inout: atomP, atomR
@@ -250,7 +250,7 @@ void destroySimulation(SimFlat** ps)
     destroyLinkCells(&(s->boxes));
     destroyAtoms(s->atoms);
     destroyAtoms(s->atomsBuffer);
-    destroyHaloExchange(&(s->atomExchange));
+    //destroyHaloExchange(&(s->atomExchange));
     comdFree(s->species);
     comdFree(s->domain);
     comdFree(s);
