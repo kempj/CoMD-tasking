@@ -225,14 +225,16 @@ int ljForce(SimFlat* s)
         }
     }
     //The original zeroes out all blocks, not sure if it's necessary.
-    for(int iBox=s->boxes->nLocalBoxes; iBox < s->boxes->nTotalBoxes; iBox++) {
+    //for(int iBox=s->boxes->nLocalBoxes; iBox < s->boxes->nTotalBoxes; iBox++) {
+    for(int iBox=s->boxes->nLocalBoxes; iBox < s->boxes->nLocalBoxes; iBox++) {
 #pragma omp task depend(inout: atomU[iBox*MAXATOMS], atomF[iBox*MAXATOMS])
         for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
             zeroReal3(s->atoms->f[ii]);
             s->atoms->U[ii] = 0.;
         }
     }
-    ompReduce(reductionArray, s->boxes->nTotalBoxes);
+    //ompReduce(reductionArray, s->boxes->nTotalBoxes);
+    ompReduce(reductionArray, s->boxes->nLocalBoxes);
 
     real_t *ePotential = &(s->ePotential);
 #pragma omp task depend(inout: reductionArray[0]) depend(out: ePotential[0])

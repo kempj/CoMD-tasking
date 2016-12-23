@@ -383,12 +383,13 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
         {   //This task pulls all atoms that belong in cell iBox from multiple cells in the main buffer to cell iBox in the secondary buffer
             boxesBuffer->nAtoms[iBox] = 0;
 
+            int firstCopy = 0;
             for(int i=0; i<27; i++) {
                 int neighborBox = boxes->nbrBoxes[iBox][i];
-                if(neighborBox != iBox) {
-                    //printf("checking  box %d vs neighboring box %d\n", iBox, neighborBox);
+                if(neighborBox != iBox || firstCopy == 0) {
+                    if(neighborBox == iBox)
+                        firstCopy = 1;
                     for(int atomNum = 0; atomNum < boxes->nAtoms[neighborBox]; atomNum++) {
-                     //check and shift locally 
                         real3 tempPosition;
                         for(int i=0; i<3; i++) {
                             tempPosition[i] = atoms->r[neighborBox*MAXATOMS + atomNum][i];
@@ -399,7 +400,10 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                             }
                         }
                         //Write to secondary buffer if Atom belongs in iBox
+                        //int correctBox = getBoxFromCoord(boxes, tempPosition);
+                        //printf("atom %d in box %d belongs in box %d\n", atomNum, iBox, correctBox);
                         if(iBox == getBoxFromCoord(boxes, tempPosition)) {
+                            //printf("moving the atom\n");
                             copyAtom(atoms, atomsBuffer, atomNum, neighborBox, boxesBuffer->nAtoms[iBox], iBox);
                             for(int i=0; i<3; i++) {
                                 atomsBuffer->r[iBox*MAXATOMS + boxesBuffer->nAtoms[iBox]][i] = tempPosition[i];
@@ -447,6 +451,7 @@ int maxOccupancy(LinkCell* boxes)
 /// re-order atoms within a link cell.
 void copyAtom(Atoms* in, Atoms* out, int inAtom, int inBox, int outAtom, int outBox)
 {
+    //printf("copying atom %d from box %d, atom to box %d atom %d\n", inAtom, inBox, outAtom, outBox);
     const int inOff = MAXATOMS*inBox+inAtom;
     const int outOff = MAXATOMS*outBox+outAtom;
     out->gid[outOff] = in->gid[inOff];
