@@ -113,10 +113,12 @@ LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
         ll->nbrBoxes[iBox] = comdMalloc(27*sizeof(int));
     }
 
-    //TODO: change this to nTotalBoxes.
-    //for(int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
-    for(int iBox=0; iBox<ll->nTotalBoxes; ++iBox) {
-        getNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
+    for(int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
+        getLocalNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
+    }
+    //TODO: make sure this isn't used and remove.
+    for(int iBox=ll->nLocalBoxes; iBox<ll->nTotalBoxes; ++iBox) {
+        getHaloNeighborBoxes(ll, iBox, ll->nbrBoxes[iBox]);
     }
 
     return ll;
@@ -134,7 +136,58 @@ void destroyLinkCells(LinkCell** boxes)
     return;
 }
 
+void haloToLocalCell(int *x, int *y, int *z, int *gridSize)
+{
+    if(*x == 0 ) 
+        *x = gridSize[0];            
+    if(*y == 0)
+        *y = gridSize[1];
+    if(*z == 0)
+        *z = gridSize[2];
+    if(*x == gridSize[0] - 1)
+        *x = -1;
+    if(*y == gridSize[1] - 1)
+        *y = -1;
+    if(*z == gridSize[2] - 1)
+        *z = -1;
+}
+
+//for shared memory only, takes a halo cell and returns the local cell that it corresponds to.
+int getLocalHaloTuple(LinkCell *boxes, int iBox) {
+    int x,y,z;
+    getTuple(boxes, iBox, &x, &y, &z);
+
+    haloToLocalCell(&x, &y, &z, boxes->gridSize);
+
+    return getBoxFromTuple(boxes, x, y, z);
+}
+
 int getLocalNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
+{
+    int ix, iy, iz;
+    getTuple(boxes, iBox, &ix, &iy, &iz);
+
+    int count = 0;
+    for (int i=ix-1; i<=ix+1; i++) {
+        for (int j=iy-1; j<=iy+1; j++) {
+            for (int k=iz-1; k<=iz+1; k++) {
+                nbrBoxes[count++] = getLocalHaloTuple(boxes, getBoxFromTuple(boxes,i,j,k));
+            }
+        }
+    }
+    return count;
+}
+
+
+/// \details
+/// Populates the nbrBoxes array with the 27 boxes that are adjacent to
+/// iBox.  The count is 27 instead of 26 because iBox is included in the
+/// list (as neighbor 13).  Caller is responsible to alloc and free
+/// nbrBoxes.
+/// \return The number of nbr boxes (always 27 in this implementation).
+
+//TODO: This shouldn't be used any more.
+int getNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
 {
     int ix, iy, iz;
     getTuple(boxes, iBox, &ix, &iy, &iz);
@@ -175,22 +228,6 @@ int getHaloNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
     }
     
     return count;
-}
-
-/// \details
-/// Populates the nbrBoxes array with the 27 boxes that are adjacent to
-/// iBox.  The count is 27 instead of 26 because iBox is included in the
-/// list (as neighbor 13).  Caller is responsible to alloc and free
-/// nbrBoxes.
-/// \return The number of nbr boxes (always 27 in this implementation).
-int getNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
-{
-    if(iBox < boxes->nLocalBoxes) {
-        getLocalNeighborBoxes(boxes, iBox, nbrBoxes);
-    } else {
-        //printf("getting neighbors for halo cells\n");
-        getHaloNeighborBoxes(boxes, iBox, nbrBoxes);
-    }
 }
 
 
@@ -304,31 +341,6 @@ void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes,
     return;
 }
 
-int getLocalHaloTuple(LinkCell *boxes, int iBox) {
-    int x,y,z;
-    getTuple(boxes, iBox, &x, &y, &z);
-    int haloX = x;
-    int haloY = y;
-    int haloZ = z;
-
-    const int* gridSize = boxes->gridSize; // alias
-
-    //if iBox has a halo cell as a neighbor
-    if(x == 0 ) 
-        haloX = gridSize[0];            
-    if(y == 0)
-        haloY = gridSize[1];
-    if(z == 0)
-        haloZ = gridSize[2];
-    if(x == gridSize[0] - 1)
-        haloX = -1;
-    if(y == gridSize[1] - 1)
-        haloY = -1;
-    if(z == gridSize[2] - 1)
-        haloZ = -1;
-
-    return getBoxFromTuple(boxes, haloX, haloY, haloZ);
-}
 
 //This copies a cell from one box buffer to another.
 void copyCell(LinkCell *sourceBoxes, LinkCell *destBoxes, Atoms *sourceAtoms, Atoms *destAtoms, int iBox)
@@ -387,6 +399,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
     }
 
     //This loop copies the cells from the buffer back to the main buffer.
+    //FIXME: this is incorrect. 
     for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
         int haloBox = getLocalHaloTuple(boxes, iBox);
         if(haloBox != iBox) {

@@ -149,19 +149,39 @@ void kineticEnergy(SimFlat* s)
 /// \see updateLinkCells
 /// \see initAtomHaloExchange
 /// \see sortAtomsInCell
-void redistributeAtoms(SimFlat* sim)
+void redistributeAtoms(SimFlat* s)
 {
-    real3 *atomP = sim->atoms->p;
-    real3 *atomR = sim->atoms->r;
+
+//#pragma omp taskwait
+//    printf("before updateLinkCells and haloexchange\n");
+//    for(int i = 0; i < s->boxes->nTotalBoxes; i++) {
+//        printf("Box %d has %d atoms\n",i, s->boxes->nAtoms[i]);
+//        for(int j=0; j < s->boxes->nAtoms[i]; j++) {
+//            printf("%d ", s->atoms->gid[i*MAXATOMS + j]);
+//        }
+//        printf("\n");
+//    }
+    real3 *atomP = s->atoms->p;
+    real3 *atomR = s->atoms->r;
     //This involves a copy of each atom that has moved from one cell to it's neighbor
-    updateLinkCells(sim->boxes, sim->boxesBuffer, sim->atoms, sim->atomsBuffer);
+    updateLinkCells(s->boxes, s->boxesBuffer, s->atoms, s->atomsBuffer);
 
     startTimer(atomHaloTimer);
-    //haloExchange(sim->atomExchange, sim);
+//#pragma omp taskwait
+//    haloExchange(s->atomExchange, s);
     stopTimer(atomHaloTimer);
 
-    for(int iBox=0; iBox<sim->boxes->nTotalBoxes; ++iBox) {
+//    printf("After haloexchange\n");
+//    for(int i = 0; i < s->boxes->nTotalBoxes; i++) {
+//        printf("Box %d has %d atoms: \n",i, s->boxes->nAtoms[i]);
+//        for(int j=0; j < s->boxes->nAtoms[i]; j++) {
+//            printf("%d ", s->atoms->gid[i*MAXATOMS + j]);
+//        }
+//        printf("\n");
+//    }
+
+    for(int iBox=0; iBox<s->boxes->nTotalBoxes; ++iBox) {
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS])
-        sortAtomsInCell(sim->atoms, sim->boxes, iBox);
+        sortAtomsInCell(s->atoms, s->boxes, iBox);
     }
 }
