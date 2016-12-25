@@ -151,7 +151,10 @@ int main(int argc, char** argv)
     printThings(sim, iStep, getElapsedTime(timestepTimer));
 #pragma omp taskwait
     timestampBarrier("Ending simulation\n");
-    printf("Total tasks created = %d\n", taskCounterArray[0]);
+    printf("Total tasks created: \n");
+    for(int i=0; i < 17; i++) {
+        printf("%d - %d\n", i, taskCounterArray[i]);
+    }
 
     // Epilog
     validateResult(validate, sim);
@@ -223,7 +226,7 @@ SimFlat* initSimulation(Command cmd)
 
     reductionArray = comdCalloc(sim->boxes->nTotalBoxes + 16, sizeof(double));
     r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes + 16, sizeof(real3));
-    taskCounterArray = comdCalloc(1+omp_get_num_threads(), sizeof(int));
+    taskCounterArray = comdCalloc(17, sizeof(int));
 
     setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
     randomDisplacements(cmd.initialDelta);//inout atomR, in atomP
@@ -377,11 +380,9 @@ void printThings(SimFlat* s, int iStep, double elapsedTime)
     real_t *eKinetic = &(sim->eKinetic);
     real_t *ePotential = &(s->ePotential);
 
-    taskCounterArray[0]++;
+    taskCounterArray[16]++; //task16
 #pragma omp task depend(in: eKinetic[0], ePotential[0])
     {
-        int tid = omp_get_thread_num();
-        taskCounterArray[tid+1]++;
         // keep track previous value of iStep so we can calculate number of steps.
         static int iStepPrev = -1; 
         static int firstCall = 1;
@@ -408,7 +409,6 @@ void printThings(SimFlat* s, int iStep, double elapsedTime)
 
         fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %10.4f %12d\n",
                 iStep, time, eTotal, eU, eK, Temp, timePerAtom, s->atoms->nGlobal);
-        taskCounterArray[tid+1]--;
     }
 }
 

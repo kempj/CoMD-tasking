@@ -33,7 +33,7 @@ void ompReduceStride(double *depArray, int arraySize, int depStride)
     int innerStride = depStride;
     while( innerStride < (arraySize*depStride) ) { 
         for(int boxNum=0; boxNum < (arraySize*depStride); boxNum +=reductionStride) {
-        taskCounterArray[0]++;
+        taskCounterArray[0]++; //task0
 #pragma omp task depend(inout: depArray[boxNum]) \
                  depend(in   : depArray[boxNum+   innerStride],\
                                depArray[boxNum+2 *innerStride], depArray[boxNum+3 *innerStride],\

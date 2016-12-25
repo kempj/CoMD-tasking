@@ -122,16 +122,16 @@ void printPerformanceResults(int nGlobalAtoms)
    double loopTime = perfTimer[loopTimer].total*tick;
    
    fprintf(screenOut, "\n\nTimings for Rank %d\n", getMyRank());
-   fprintf(screenOut, "        Timer        # Calls    Avg/Call (s)   Total (s)    %% Loop\n");
+   fprintf(screenOut, "        Timer        # Calls    Avg/Call (ms)      Total (s)    %% Loop\n");
    fprintf(screenOut, "___________________________________________________________________\n");
    for (int ii=0; ii<numberOfTimers; ++ii)
    {
       double totalTime = perfTimer[ii].total*tick;
       if (perfTimer[ii].count > 0)
-         fprintf(screenOut, "%-16s%12"PRIu64"     %8.4f      %8.4f    %8.2f\n", 
+         fprintf(screenOut, "%-16s%12"PRIu64"     %11.4f      %8.4f    %8.2f\n", 
                  timerName[ii],
                  perfTimer[ii].count,
-                 totalTime/(double)perfTimer[ii].count,
+                 1000*totalTime/(double)perfTimer[ii].count,
                  totalTime,
                  totalTime/loopTime*100.0);
    }
