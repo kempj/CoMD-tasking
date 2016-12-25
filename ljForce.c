@@ -160,29 +160,58 @@ void boxForce(int iBox, SimFlat *s)
     real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
     real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
 
-    int ix = iBox % gridSize[0];
+    int xyz[3];
+    xyz[0] = iBox % gridSize[0];
     int tmpBox = iBox / gridSize[0];
-    int iy = tmpBox % gridSize[1];
-    int iz = tmpBox / gridSize[1];
+    xyz[1] = tmpBox % gridSize[1];
+    xyz[2] = tmpBox / gridSize[1];
 
+    //real3 offset;
+    real3 offset[3][3][3];
 
-    real3 offset;
+    //printf("for box (%d, %d, %d)\n", xyz[0], xyz[1], xyz[2]);
+    int ijk[3];
+    for(int i=0; i<3; i++) {
+        ijk[0] = i;
+        for(int j=0; j<3; j++) {
+            ijk[1] = j;
+            for(int k=0; k<3; k++) {
+                ijk[2] = k;
+                //printf("neighbor %d, %d, %d has offsets ", ijk[0]+xyz[0]-1, ijk[1]+xyz[1]-1, ijk[2]+xyz[2]-1);
+                for(int m=0; m<3; m++) {
+                    if(ijk[m]+xyz[m]-1 == gridSize[m]) {
+                        offset[i][j][k][m] = localMax[m];
+                    } else if(ijk[m]+xyz[m]-1 == -1) {
+                        offset[i][j][k][m] =-localMax[m];
+                    } else {
+                        offset[i][j][k][m] = 0;
+                    }
+                    //printf("%f ", offset[i][j][k][m]);
+                }
+                //printf("\n");
+            }
+        }
+    }
+
     int nIBox = s->boxes->nAtoms[iBox];
     double ePot = 0;
-    for(int i=ix-1; i<=ix+1; i++) {
-        offset[0] = 0;
-        if(i == gridSize[0]) offset[0] = localMax[0];
-        if(i == -1         ) offset[0] =-localMax[0];
-        for(int j=iy-1; j<=iy+1; j++) {
-            offset[1] = 0;
-            if(j == gridSize[1]) offset[1] = localMax[1];
-            if(j == -1         ) offset[1] =-localMax[1];
-            for(int k=iz-1; k<=iz+1; k++) {
-                offset[2] = 0;
-                if(k == gridSize[2]) offset[2] = localMax[2];
-                if(k == -1         ) offset[2] =-localMax[2];
+    //for(int i=ix-1; i<=ix+1; i++) {
+        //offset[0] = 0;
+        //if(i == gridSize[0]) offset[0] = localMax[0];
+        //if(i == -1         ) offset[0] =-localMax[0];
+        //for(int j=iy-1; j<=iy+1; j++) {
+            //offset[1] = 0;
+            //if(j == gridSize[1]) offset[1] = localMax[1];
+            //if(j == -1         ) offset[1] =-localMax[1];
+            //for(int k=iz-1; k<=iz+1; k++) {
+                //offset[2] = 0;
+                //if(k == gridSize[2]) offset[2] = localMax[2];
+                //if(k == -1         ) offset[2] =-localMax[2];
                 
-                int realJBox = getBoxFromTuple(s->boxes, i, j, k);
+    for(int i=0; i<3; i++) {
+        for(int j=0; j<3; j++) {
+            for(int k=0; k<3; k++) {
+                int realJBox = getBoxFromTuple(s->boxes, i+xyz[0]-1, j+xyz[1]-1, k+xyz[2]-1);
                 int jBox = getLocalHaloTuple(s->boxes, realJBox);
                 int nJBox = s->boxes->nAtoms[jBox];
                 for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
@@ -190,7 +219,7 @@ void boxForce(int iBox, SimFlat *s)
                         real3 dr;
                         real_t r2 = 0.0;
                         for(int m=0; m<3; m++) {
-                            dr[m] = s->atoms->r[iOff][m] - (s->atoms->r[jOff][m] + offset[m]);
+                            dr[m] = s->atoms->r[iOff][m] - (s->atoms->r[jOff][m] + offset[i][j][k][m]);
                             r2+=dr[m]*dr[m];
                         }
                         if(r2<=rCut2 && r2>0.0) {

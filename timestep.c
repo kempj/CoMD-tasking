@@ -143,18 +143,6 @@ void kineticEnergy(SimFlat* s)
 /// \see sortAtomsInCell
 void redistributeAtoms(SimFlat* s)
 {
-
-    real3 *atomP = s->atoms->p;
-    real3 *atomR = s->atoms->r;
-    //This involves a copy of each atom that has moved from one cell to it's neighbor
+    //TODO: re-organize this in a better way.
     updateLinkCells(s->boxes, s->boxesBuffer, s->atoms, s->atomsBuffer);
-
-    startTimer(atomHaloTimer);
-//    haloExchange(s->atomExchange, s);
-    stopTimer(atomHaloTimer);
-
-//    for(int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
-//#pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS])
-//        sortAtomsInCell(s->atoms, s->boxes, iBox);
-//    }
 }

@@ -131,7 +131,7 @@ int main(int argc, char** argv)
     for (; iStep<nSteps; )
     {
         startTimer(commReduceTimer);
-        sumAtoms(sim);//TODO: This is a reduce of all local atom counts
+        sumAtoms(sim);//TODO: This is a reduce of all local atom counts Can I combine this with KE?
         stopTimer(commReduceTimer);
 
         printThings(sim, iStep, getElapsedTime(timestepTimer));
