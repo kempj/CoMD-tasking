@@ -110,18 +110,19 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 void kineticEnergy(SimFlat* s)
 {
 
-#pragma omp task depend(inout: reductionArray[0])
-    reductionArray[0] = 0.;
 
     real3  *atomP = s->atoms->p;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
 #pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox*MAXATOMS])
-        for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
-            int iSpecies = s->atoms->iSpecies[iOff];
-            real_t invMass = 0.5/s->species[iSpecies].mass;
-            reductionArray[iBox] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
-                                      s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
-                                      s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
+        {
+            reductionArray[iBox] = 0.;
+            for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                int iSpecies = s->atoms->iSpecies[iOff];
+                real_t invMass = 0.5/s->species[iSpecies].mass;
+                reductionArray[iBox] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
+                                          s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
+                                          s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
+            }
         }
     }
 
@@ -130,7 +131,6 @@ void kineticEnergy(SimFlat* s)
 #pragma omp task depend( in: reductionArray[0] ) depend( out: eKinetic[0] )
     {
         s->eKinetic = reductionArray[0];
-        //printf("KE = %f \n", reductionArray[0]); 
         reductionArray[0] = 0;
     }
 
@@ -161,8 +161,8 @@ void redistributeAtoms(SimFlat* s)
 //    haloExchange(s->atomExchange, s);
     stopTimer(atomHaloTimer);
 
-    for(int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS])
-        sortAtomsInCell(s->atoms, s->boxes, iBox);
-    }
+//    for(int iBox=0; iBox<s->boxes->nLocalBoxes; ++iBox) {
+//#pragma omp task depend(inout: atomP[iBox*MAXATOMS], atomR[iBox*MAXATOMS])
+//        sortAtomsInCell(s->atoms, s->boxes, iBox);
+//    }
 }

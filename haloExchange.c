@@ -295,7 +295,6 @@ void exchangeData(HaloExchange* haloExchange, void* data, int iAxis)
 
     int nRecvM, nRecvP;
 
-    //printf("sending %d and receiving %d\n", nSendM, nSendP);
     startTimer(commHaloTimer);
     nRecvP = sendReceiveParallel(sendBufM, nSendM, nbrRankM, recvBufP, haloExchange->bufCapacity, nbrRankP);
     nRecvM = sendReceiveParallel(sendBufP, nSendP, nbrRankP, recvBufM, haloExchange->bufCapacity, nbrRankM);
@@ -380,14 +379,8 @@ int loadAtomsBuffer(void* vparms, void* data, int face, char* charBuf)
     {
         int iBox = cellList[iCell];
         int iOff = iBox*MAXATOMS;
-        //printf("cell %d\n", iBox);
         for (int ii=iOff; ii<iOff+s->boxes->nAtoms[iBox]; ++ii)
         {
-            //printf("atom %d being shifted from %f, %f, %f to %f, %f, %f\n", s->atoms->gid[ii],
-            //        s->atoms->r[ii][0], s->atoms->r[ii][1], s->atoms->r[ii][2], 
-            //        s->atoms->r[ii][0]+shift[0], 
-            //        s->atoms->r[ii][1]+shift[1], 
-            //        s->atoms->r[ii][2]+shift[2]);
             buf[nBuf].gid  = s->atoms->gid[ii];
             buf[nBuf].type = s->atoms->iSpecies[ii];
             buf[nBuf].rx = s->atoms->r[ii][0] + shift[0];
@@ -431,10 +424,6 @@ void unloadAtomsBuffer(void* vparms, void* data, int face, int bufSize, char* ch
         real_t py = buf[ii].py;
         real_t pz = buf[ii].pz;
         putAtomInBox(s->boxes, s->atoms, gid, type, rx, ry, rz, px, py, pz);
-        //real_t xyz[3] = {rx,ry,rz};
-        //int iBox = getBoxFromCoord(s->boxes, xyz);
-        //printf("storing Atom %d (%f, %f, %f) in box %d\n", buf[ii].gid, 
-        //        rx, ry, rz, iBox);
     }
 }
 

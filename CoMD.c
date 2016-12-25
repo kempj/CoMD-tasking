@@ -109,8 +109,6 @@ int main(int argc, char** argv)
     {
 #pragma omp single
     {
-    //Not sure why this was local.
-    //SimFlat* sim = initSimulation(cmd);
     
     sim = initSimulation(cmd);
     printSimulationDataYaml(yamlFile, sim);

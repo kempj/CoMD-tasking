@@ -336,15 +336,45 @@ void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes,
     return;
 }
 
+int nextHighestAtom(Atoms *sourceAtoms, int atomOffset, int nAtoms, int maxGID, int minGID) 
+{
+    int targetPosition = 0;
+    int targetGID = maxGID;
+    for(int i = 0; i < nAtoms; i++) {
+        if(sourceAtoms->gid[atomOffset+i] > minGID && sourceAtoms->gid[atomOffset+i] <= targetGID) {
+            targetPosition = i;
+            targetGID = sourceAtoms->gid[atomOffset+i];
+        }
+    }
+    //printf("next highest GID (after %d) is %d in position %d\n", minGID, targetGID, targetPosition);
+    return targetPosition;
+}
 
 //This copies a cell from one box buffer to another.
-void copyCell(LinkCell *sourceBoxes, LinkCell *destBoxes, Atoms *sourceAtoms, Atoms *destAtoms, int iBox)
+void copySortedCell(LinkCell *sourceBoxes, LinkCell *destBoxes, Atoms *sourceAtoms, Atoms *destAtoms, int iBox)
 {
-    //const int atomOffset = iBox*MAXATOMS;
     const int numAtoms = sourceBoxes->nAtoms[iBox];
-    //for(int atomNum = atomOffset; atomNum < atomOffset + numAtoms; atomNum++) {
+    int highestGID, lowestGID;
+    int atomOffset = MAXATOMS * iBox;
+    highestGID = lowestGID = sourceAtoms->gid[atomOffset];
+    for(int i = atomOffset; i < atomOffset + numAtoms; i++) {
+        if(sourceAtoms->gid[i] < lowestGID) {
+            lowestGID = sourceAtoms->gid[i];
+        }
+        if(sourceAtoms->gid[i] > highestGID) {
+            highestGID = sourceAtoms->gid[i];
+        }
+    }
+
+    //printf("\ncopying cell %d with GIDs from %d to %d\n\n", iBox, lowestGID, highestGID);
+
+    int targetAtom = nextHighestAtom(sourceAtoms, atomOffset, numAtoms, highestGID, lowestGID - 1);
+    //printf("\n");
     for(int atomNum = 0; atomNum < numAtoms; atomNum++) {
-        copyAtom(sourceAtoms, destAtoms, atomNum, iBox, atomNum, iBox);
+        //printf("writing Atom %d (gid = %d) to position %d\n", atomNum, sourceAtoms->gid[atomOffset + atomNum], targetAtom);
+        copyAtom(sourceAtoms, destAtoms, atomNum, iBox, targetAtom, iBox);
+        targetAtom = nextHighestAtom(sourceAtoms, atomOffset, numAtoms, highestGID, sourceAtoms->gid[atomOffset + targetAtom]);
+        
     }
     destBoxes->nAtoms[iBox] = sourceBoxes->nAtoms[iBox];
 }
@@ -413,9 +443,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
 #pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
                              atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
-        copyCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
-        //TODO: I can sort the atoms in the cell here, 
-        //or in the above task once this task goes away.
+        copySortedCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
     }
 }
 
@@ -440,7 +468,6 @@ int maxOccupancy(LinkCell* boxes)
 /// re-order atoms within a link cell.
 void copyAtom(Atoms* in, Atoms* out, int inAtom, int inBox, int outAtom, int outBox)
 {
-    //printf("copying atom %d from box %d, atom to box %d atom %d\n", inAtom, inBox, outAtom, outBox);
     const int inOff = MAXATOMS*inBox+inAtom;
     const int outOff = MAXATOMS*outBox+outAtom;
     out->gid[outOff] = in->gid[inOff];

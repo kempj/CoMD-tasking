@@ -169,7 +169,6 @@ void boxForce(int iBox, SimFlat *s)
     real3 offset;
     int nIBox = s->boxes->nAtoms[iBox];
     double ePot = 0;
-    //for(int jTmp=0; jTmp < 27 ; jTmp++) {
     for(int i=ix-1; i<=ix+1; i++) {
         offset[0] = 0;
         if(i == gridSize[0]) offset[0] = localMax[0];
@@ -185,20 +184,13 @@ void boxForce(int iBox, SimFlat *s)
                 
                 int realJBox = getBoxFromTuple(s->boxes, i, j, k);
                 int jBox = getLocalHaloTuple(s->boxes, realJBox);
-                //int jBox = ix + gridSize[0]*iy + gridSize[0]*gridSize[1]*iz;
                 int nJBox = s->boxes->nAtoms[jBox];
                 for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
-                    //printf("calculating force for atom %d of %d, in box %d\n", iOff-iBox*MAXATOMS, nIBox, iBox);
-                    //printf("\tfor each of %d atoms in box %d (actually %d)\n", nJBox, jBox, realJBox);
                     for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
-                        //printf("\tbased on interaction with atom %d of box %d\n", jOff-jBox*MAXATOMS, jBox);
                         real3 dr;
                         real_t r2 = 0.0;
                         for(int m=0; m<3; m++) {
                             dr[m] = s->atoms->r[iOff][m] - (s->atoms->r[jOff][m] + offset[m]);
-                            //printf("dr[%d] = %f - %f ", m, s->atoms->r[iOff][m], s->atoms->r[jOff][m]);
-                            //if(offset[m] != 0)
-                                //printf("+ %f = %f\n", offset[m], dr[m]);
                             r2+=dr[m]*dr[m];
                         }
                         if(r2<=rCut2 && r2>0.0) {
@@ -209,18 +201,15 @@ void boxForce(int iBox, SimFlat *s)
                             ePot += 0.5*eLocal;
 
                             real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
-                            //printf("(%f, %f, %f)  ->  ", s->atoms->f[iOff][0], s->atoms->f[iOff][1], s->atoms->f[iOff][2]);
                             for (int m=0; m<3; m++) {
                                 s->atoms->f[iOff][m] -= dr[m]*fr;
                             }
-                            //printf("(%f, %f, %f) \n", s->atoms->f[iOff][0], s->atoms->f[iOff][1], s->atoms->f[iOff][2]);
                         }
                     }
                 }
             }
         }
     }
-    //printf("reductionArray[%d] = %f\n", iBox, reductionArray[iBox]);
     reductionArray[iBox] = ePot;
 }
 
