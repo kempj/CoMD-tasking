@@ -19,6 +19,7 @@
 extern struct SimFlatSt* sim;
 extern real3 *r3ReductionArray;
 double *reductionArray;
+extern int *taskCounterArray;
 
 real_t vInit[3] = {0., 0., 0.};
 
@@ -110,6 +111,7 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 /// \param [in] newVcm The desired center of mass velocity.
 void setVcm()
 {
+    taskCounterArray[0]++;
 #pragma omp task depend(inout: reductionArray[0], r3ReductionArray[0][0])
     {
         reductionArray[0] = 0.;
@@ -119,6 +121,7 @@ void setVcm()
     }
     real3 *atomP = sim->atoms->p;
     for (int iBox=0; iBox < sim->boxes->nLocalBoxes; ++iBox) {
+        taskCounterArray[0]++;
 #pragma omp task depend( in: atomP[iBox*MAXATOMS]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
         {
             int Off = MAXATOMS*iBox;
@@ -135,6 +138,7 @@ void setVcm()
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
     ompReduce(reductionArray, sim->boxes->nLocalBoxes);
 
+    taskCounterArray[0]++;
 #pragma omp task depend(inout: r3ReductionArray[0], reductionArray[0]) depend( out: vInit[0])
     {
         real_t v3 = reductionArray[0]; 
@@ -148,6 +152,7 @@ void setVcm()
     }
 
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
+        taskCounterArray[0]++;
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend(in: vInit[0])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iSpecies = sim->atoms->iSpecies[iOff];
@@ -164,6 +169,7 @@ void setTemperature(real_t temperature)
 {
     real3 *atomP = sim->atoms->p;
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
+        taskCounterArray[0]++;
 #pragma omp task depend(out: atomP[iBox*MAXATOMS])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
             int iType = sim->atoms->iSpecies[iOff];
@@ -183,6 +189,7 @@ void setTemperature(real_t temperature)
     real_t *eKinetic = &(sim->eKinetic);
 
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
+        taskCounterArray[0]++;
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend( in: eKinetic[0])
         {
             real_t temp = (sim->eKinetic/sim->atoms->nGlobal)/kB_eV/1.5;
@@ -206,6 +213,7 @@ void randomDisplacements(real_t delta)
     real3 *atomR = sim->atoms->r;
     real3 *atomP = sim->atoms->p; //AtomP used so setTemp is done before this begins.
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
+        taskCounterArray[0]++;
 #pragma omp task depend(inout: atomR[iBox*MAXATOMS][0]) \
                  depend(in   : atomP[iBox*MAXATOMS])
         for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {

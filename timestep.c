@@ -15,6 +15,7 @@ static void advancePosition(SimFlat* s, int nBoxes, real_t dt);
 
 extern double *reductionArray;
 extern double globalEnergy;
+extern int *taskCounterArray;
 
 /// Advance the simulation time to t+dt using a leap frog method
 /// (equivalent to velocity verlet).
@@ -44,6 +45,7 @@ double timestep(SimFlat* s, int nSteps, real_t dt)
         computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 27->1 deps
         advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
 
+        //printf("Tasks created at iteration %d = %d\n", ii, taskCounterArray[0]);
     }
     kineticEnergy(s);//reduction over atomP
     return s->ePotential;
@@ -59,8 +61,11 @@ void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
     real3 *atomP = s->atoms->p;
     real3 *atomF = s->atoms->f;
     for (int iBox=0; iBox<nBoxes; iBox++) {
+        taskCounterArray[0]++;
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend(in: atomF[iBox*MAXATOMS])
         {
+            int tid = omp_get_thread_num();
+            taskCounterArray[tid+1]++;
             startTimer(velocityTimer);
             for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
                 s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
@@ -68,6 +73,7 @@ void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
                 s->atoms->p[iOff][2] += dt*s->atoms->f[iOff][2];
             }
             stopTimer(velocityTimer);
+            taskCounterArray[tid+1]--;
         }
     }
 }
@@ -78,8 +84,11 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
     real3 *atomR = s->atoms->r;
     for (int iBox=0; iBox<nBoxes; iBox++)
     {
+        taskCounterArray[0]++;
 #pragma omp task depend(inout: atomR[iBox*MAXATOMS]) depend(in: atomP[iBox*MAXATOMS])
         {
+            int tid = omp_get_thread_num();
+            taskCounterArray[tid+1]++;
             startTimer(positionTimer);
             for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
             {
@@ -90,6 +99,7 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
                 s->atoms->r[iOff][2] += dt*s->atoms->p[iOff][2]*invMass;
             }
             stopTimer(positionTimer);
+            taskCounterArray[tid+1]--;
         }
     }
 }
@@ -100,6 +110,7 @@ void kineticEnergy(SimFlat* s)
 {
     real3  *atomP = s->atoms->p;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
+        taskCounterArray[0]++;
 #pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox*MAXATOMS])
         {
             reductionArray[iBox] = 0.;
@@ -114,6 +125,7 @@ void kineticEnergy(SimFlat* s)
     }
     ompReduce(reductionArray, s->boxes->nLocalBoxes);
     real_t *eKinetic= &(s->eKinetic);
+        taskCounterArray[0]++;
 #pragma omp task depend( in: reductionArray[0] ) depend( out: eKinetic[0] )
     {
         s->eKinetic = reductionArray[0];

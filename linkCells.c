@@ -75,6 +75,9 @@
 #define   MIN(A,B) ((A) < (B) ? (A) : (B))
 #define   MAX(A,B) ((A) > (B) ? (A) : (B))
 
+
+extern int *taskCounterArray;
+
 static void copyAtom(Atoms* in, Atoms* out, int iAtom, int iBox, int jAtom, int jBox);
 static void emptyHaloCells(LinkCell* boxes);
 
@@ -394,6 +397,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
         for(int nBox=0; nBox < 27; nBox++) {
             neighbors[nBox] = boxes->nbrBoxes[iBox][nBox];
         }
+        taskCounterArray[0]++;
 #pragma omp task depend(out: atomsBufferR[iBox*MAXATOMS]) \
                  depend( in: atomR[neighbors[0 ]*MAXATOMS], atomR[neighbors[1 ]*MAXATOMS], atomR[neighbors[2 ]*MAXATOMS], \
                              atomR[neighbors[3 ]*MAXATOMS], atomR[neighbors[4 ]*MAXATOMS], atomR[neighbors[5 ]*MAXATOMS], \
@@ -442,6 +446,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
 
     //This loop copies the cells from the buffer back to the main buffer.
     for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
+        taskCounterArray[0]++;
 #pragma omp task depend(in : atomsBufferR[iBox*MAXATOMS]) \
                  depend(out: atomF[iBox*MAXATOMS], atomR[iBox*MAXATOMS],\
                              atomU[iBox*MAXATOMS], atomP[iBox*MAXATOMS])
