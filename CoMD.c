@@ -110,11 +110,14 @@ int main(int argc, char** argv)
 #pragma omp single
     {
     
-    sim = initSimulation(cmd);
+    //This is done in a parallel region, because several of the functions it calls create tasks.
+    //  If this was done in serial, these functions would need two versions.
+    sim = initSimulation(cmd);//out: P, R, U, F, KE
     printSimulationDataYaml(yamlFile, sim);
     printSimulationDataYaml(screenOut, sim);
 
 #pragma omp taskwait
+    //To remove this taskwait, the print statements below need to be put in a task.
     Validate* validate = initValidate(sim);
     timestampBarrier("Initialization Finished\n");
 
@@ -128,7 +131,7 @@ int main(int argc, char** argv)
     for (; iStep<nSteps; )
     {
         startTimer(commReduceTimer);
-        sumAtoms(sim);
+        sumAtoms(sim);//TODO: This is a reduce of all local atom counts
         stopTimer(commReduceTimer);
 
         printThings(sim, iStep, getElapsedTime(timestepTimer));

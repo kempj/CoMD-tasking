@@ -34,36 +34,31 @@ extern double globalEnergy;
 /// After nSteps the kinetic energy is computed for diagnostic output.
 double timestep(SimFlat* s, int nSteps, real_t dt)
 {
-    /*
-#pragma omp parallel 
-    {
-#pragma omp single
-    {*/
+    //How do I combine these? 
     for (int ii=0; ii<nSteps; ++ii) {
         startTimer(velocityTimer);
-        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); 
+        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
         stopTimer(velocityTimer);
-
+        //TODO:can I replace these with a velocity + position task?
         startTimer(positionTimer);
-        advancePosition(s, s->boxes->nLocalBoxes, dt);
+        advancePosition(s, s->boxes->nLocalBoxes, dt);//in: atomP, out: atomR
         stopTimer(positionTimer);
 
         startTimer(redistributeTimer);
-        redistributeAtoms(s);
+        redistributeAtoms(s);//potentially entire atoms moved, but neighbors ->1
         stopTimer(redistributeTimer);
 
         startTimer(computeForceTimer);
-        computeForce(s);
+        computeForce(s);//in: atomR, out: atomF, atomU, reduction  , but neighbors-> 1
         stopTimer(computeForceTimer);
+        //TODO: Can I combine these with a force + velocity task?
 
         startTimer(velocityTimer);
-        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); 
+        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); //in: atomF, atomP, out: atomP
         stopTimer(velocityTimer);
 
     }
-    kineticEnergy(s);
-//    }}
-
+    kineticEnergy(s);//reduction over atomP
     return s->ePotential;
 }
 
@@ -109,8 +104,6 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 /// local potential energy is a by-product of the force routine.
 void kineticEnergy(SimFlat* s)
 {
-
-
     real3  *atomP = s->atoms->p;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
 #pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox*MAXATOMS])
@@ -125,7 +118,6 @@ void kineticEnergy(SimFlat* s)
             }
         }
     }
-
     ompReduce(reductionArray, s->boxes->nLocalBoxes);
     real_t *eKinetic= &(s->eKinetic);
 #pragma omp task depend( in: reductionArray[0] ) depend( out: eKinetic[0] )
