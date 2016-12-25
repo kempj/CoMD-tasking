@@ -6,6 +6,7 @@
 /// equivalent single task behavior.
 
 #include "parallel.h"
+#include "performanceTimers.h"
 
 #ifdef DO_MPI
 #include <mpi.h>
@@ -40,11 +41,15 @@ void ompReduceStride(double *depArray, int arraySize, int depStride)
                                depArray[boxNum+10*innerStride], depArray[boxNum+11*innerStride],\
                                depArray[boxNum+12*innerStride], depArray[boxNum+13*innerStride],\
                                depArray[boxNum+14*innerStride], depArray[boxNum+15*innerStride])
-            for(int i=boxNum+innerStride; i<(boxNum+reductionStride) && i<=((arraySize*depStride)-depStride); i += innerStride) {
-                for(int j=0; j<depStride; j++) {
-                    depArray[boxNum+j] += depArray[i+j];
-                    depArray[i+j] = 0.;
+            {
+                startTimer(ompReduceTimer);
+                for(int i=boxNum+innerStride; i<(boxNum+reductionStride) && i<=((arraySize*depStride)-depStride); i += innerStride) {
+                    for(int j=0; j<depStride; j++) {
+                        depArray[boxNum+j] += depArray[i+j];
+                        depArray[i+j] = 0.;
+                    }
                 }
+                stopTimer(ompReduceTimer);
             }
         }
         innerStride = reductionStride;

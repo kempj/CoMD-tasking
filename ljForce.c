@@ -60,6 +60,7 @@
 ///
 
 #include "ljForce.h"
+#include "performanceTimers.h"
 
 #include <stdlib.h>
 #include <assert.h>
@@ -152,13 +153,13 @@ void boxForce(int iBox, SimFlat *s)
     const int* gridSize = s->boxes->gridSize;
     const real_t* localMax = s->boxes->localMax;
     LjPotential* pot = (LjPotential *) s->pot;
-    real_t rCut = pot->cutoff;
-    real_t sigma = pot->sigma;
-    real_t epsilon = pot->epsilon;
-    real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
-    real_t rCut2 = rCut*rCut;
-    real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
-    real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
+    const real_t rCut = pot->cutoff;
+    const real_t sigma = pot->sigma;
+    const real_t epsilon = pot->epsilon;
+    const real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
+    const real_t rCut2 = rCut*rCut;
+    const real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
+    const real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
 
     int xyz[3];
     xyz[0] = iBox % gridSize[0];
@@ -166,10 +167,8 @@ void boxForce(int iBox, SimFlat *s)
     xyz[1] = tmpBox % gridSize[1];
     xyz[2] = tmpBox / gridSize[1];
 
-    //real3 offset;
     real3 offset[3][3][3];
 
-    //printf("for box (%d, %d, %d)\n", xyz[0], xyz[1], xyz[2]);
     int ijk[3];
     for(int i=0; i<3; i++) {
         ijk[0] = i;
@@ -177,7 +176,6 @@ void boxForce(int iBox, SimFlat *s)
             ijk[1] = j;
             for(int k=0; k<3; k++) {
                 ijk[2] = k;
-                //printf("neighbor %d, %d, %d has offsets ", ijk[0]+xyz[0]-1, ijk[1]+xyz[1]-1, ijk[2]+xyz[2]-1);
                 for(int m=0; m<3; m++) {
                     if(ijk[m]+xyz[m]-1 == gridSize[m]) {
                         offset[i][j][k][m] = localMax[m];
@@ -186,28 +184,13 @@ void boxForce(int iBox, SimFlat *s)
                     } else {
                         offset[i][j][k][m] = 0;
                     }
-                    //printf("%f ", offset[i][j][k][m]);
                 }
-                //printf("\n");
             }
         }
     }
 
     int nIBox = s->boxes->nAtoms[iBox];
     double ePot = 0;
-    //for(int i=ix-1; i<=ix+1; i++) {
-        //offset[0] = 0;
-        //if(i == gridSize[0]) offset[0] = localMax[0];
-        //if(i == -1         ) offset[0] =-localMax[0];
-        //for(int j=iy-1; j<=iy+1; j++) {
-            //offset[1] = 0;
-            //if(j == gridSize[1]) offset[1] = localMax[1];
-            //if(j == -1         ) offset[1] =-localMax[1];
-            //for(int k=iz-1; k<=iz+1; k++) {
-                //offset[2] = 0;
-                //if(k == gridSize[2]) offset[2] = localMax[2];
-                //if(k == -1         ) offset[2] =-localMax[2];
-                
     for(int i=0; i<3; i++) {
         for(int j=0; j<3; j++) {
             for(int k=0; k<3; k++) {
@@ -264,12 +247,13 @@ int ljForce(SimFlat* s)
                              atomR[neighbors[21]*MAXATOMS], atomR[neighbors[22]*MAXATOMS], atomR[neighbors[23]*MAXATOMS], \
                              atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
         {
-            reductionArray[iBox] = 0.;
+            startTimer(computeForceTimer);
             for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
                 zeroReal3(s->atoms->f[ii]);
                 s->atoms->U[ii] = 0.;
             }
             boxForce(iBox, s);
+            stopTimer(computeForceTimer);
         }
     }
     ompReduce(reductionArray, s->boxes->nLocalBoxes);

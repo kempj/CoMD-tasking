@@ -405,6 +405,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                              atomR[neighbors[21]*MAXATOMS], atomR[neighbors[22]*MAXATOMS], atomR[neighbors[23]*MAXATOMS], \
                              atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
         {   //This task pulls all atoms that belong in cell iBox from multiple cells in the main buffer to cell iBox in the secondary buffer
+            startTimer(redistributeTimer);
             boxesBuffer->nAtoms[iBox] = 0;
             int firstCopy = 0;
             for(int i=0; i<27; i++) {
@@ -432,6 +433,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                     }
                 }
             }
+            stopTimer(redistributeTimer);
         }
     }
 

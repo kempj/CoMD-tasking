@@ -35,27 +35,14 @@ extern double globalEnergy;
 double timestep(SimFlat* s, int nSteps, real_t dt)
 {
     //How do I combine these? 
+    //TODO: Can I use a velocity + position task?
+    //TODO: Can I use a force + velocity task?
     for (int ii=0; ii<nSteps; ++ii) {
-        startTimer(velocityTimer);
         advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
-        stopTimer(velocityTimer);
-        //TODO:can I replace these with a velocity + position task?
-        startTimer(positionTimer);
-        advancePosition(s, s->boxes->nLocalBoxes, dt);//in: atomP, out: atomR
-        stopTimer(positionTimer);
-
-        startTimer(redistributeTimer);
-        redistributeAtoms(s);//potentially entire atoms moved, but neighbors ->1
-        stopTimer(redistributeTimer);
-
-        startTimer(computeForceTimer);
-        computeForce(s);//in: atomR, out: atomF, atomU, reduction  , but neighbors-> 1
-        stopTimer(computeForceTimer);
-        //TODO: Can I combine these with a force + velocity task?
-
-        startTimer(velocityTimer);
-        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt); //in: atomF, atomP, out: atomP
-        stopTimer(velocityTimer);
+        advancePosition(s, s->boxes->nLocalBoxes, dt);    //in: atomP, out: atomR
+        redistributeAtoms(s);                             //potentially entire atoms moved, but 27->1 deps
+        computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 27->1 deps
+        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
 
     }
     kineticEnergy(s);//reduction over atomP
@@ -67,17 +54,20 @@ void computeForce(SimFlat* s)
     s->pot->force(s);
 }
 
-
 void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
 {
     real3 *atomP = s->atoms->p;
     real3 *atomF = s->atoms->f;
     for (int iBox=0; iBox<nBoxes; iBox++) {
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend(in: atomF[iBox*MAXATOMS])
-        for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
-            s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
-            s->atoms->p[iOff][1] += dt*s->atoms->f[iOff][1];
-            s->atoms->p[iOff][2] += dt*s->atoms->f[iOff][2];
+        {
+            startTimer(velocityTimer);
+            for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
+                s->atoms->p[iOff][1] += dt*s->atoms->f[iOff][1];
+                s->atoms->p[iOff][2] += dt*s->atoms->f[iOff][2];
+            }
+            stopTimer(velocityTimer);
         }
     }
 }
@@ -89,13 +79,17 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
     for (int iBox=0; iBox<nBoxes; iBox++)
     {
 #pragma omp task depend(inout: atomR[iBox*MAXATOMS]) depend(in: atomP[iBox*MAXATOMS])
-        for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
         {
-            int iSpecies = s->atoms->iSpecies[iOff];
-            real_t invMass = 1.0/s->species[iSpecies].mass;
-            s->atoms->r[iOff][0] += dt*s->atoms->p[iOff][0]*invMass;
-            s->atoms->r[iOff][1] += dt*s->atoms->p[iOff][1]*invMass;
-            s->atoms->r[iOff][2] += dt*s->atoms->p[iOff][2]*invMass;
+            startTimer(positionTimer);
+            for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
+            {
+                int iSpecies = s->atoms->iSpecies[iOff];
+                real_t invMass = 1.0/s->species[iSpecies].mass;
+                s->atoms->r[iOff][0] += dt*s->atoms->p[iOff][0]*invMass;
+                s->atoms->r[iOff][1] += dt*s->atoms->p[iOff][1]*invMass;
+                s->atoms->r[iOff][2] += dt*s->atoms->p[iOff][2]*invMass;
+            }
+            stopTimer(positionTimer);
         }
     }
 }

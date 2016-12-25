@@ -57,7 +57,8 @@ char* timerName[numberOfTimers] = {
    "  force",
    "    eamHalo",
    "commHalo",
-   "commReduce"
+   "commReduce",
+   "ompReduce"
 };
 
 /// Timer data collected.  Also facilitates computing averages and

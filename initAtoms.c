@@ -102,13 +102,7 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
             }
         }
     }
-
-    // set total atoms in simulation
-    startTimer(commReduceTimer);
-    addIntParallel(&sim->atoms->nLocal, &sim->atoms->nGlobal, 1);
-    stopTimer(commReduceTimer);
-
-
+    sim->atoms->nGlobal = sim->atoms->nLocal;
     assert(sim->atoms->nGlobal == nb*nx*ny*nz);
 }
 
