@@ -6,10 +6,15 @@
 #include <stdio.h>
 
 /// Timer handles
-enum TimerHandle{totalTimer, loopTimer, timestepTimer,
-                 positionTimer, velocityTimer,  redistributeTimer,
-                 atomHaloTimer, computeForceTimer, eamHaloTimer,
-                 commHaloTimer, commReduceTimer, ompReduceTimer, numberOfTimers};
+enum TimerHandle{totalTimer, temp1Timer, 
+                 vcm1Timer, vcm2Timer, vcm3Timer, vcm4Timer,
+                 temp2Timer, displacementTimer,
+                 loopTimer, timestepTimer,
+                 positionTimer, velocityTimer,
+                 redistributeTimer, redistributeSortTimer,
+                 computeForceTimer, ePotReductionTimer,
+                 KETimer, KEReduceTimer, printTimer,
+                 ompReduceTimer, numberOfTimers};
 
 /// Use the startTimer and stopTimer macros for timers in code regions
 /// that may be performance sensitive.  These can be compiled away by

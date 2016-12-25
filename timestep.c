@@ -15,7 +15,6 @@ static void advancePosition(SimFlat* s, int nBoxes, real_t dt);
 
 extern double *reductionArray;
 extern double globalEnergy;
-extern int *taskCounterArray;
 
 /// Advance the simulation time to t+dt using a leap frog method
 /// (equivalent to velocity verlet).
@@ -45,7 +44,6 @@ double timestep(SimFlat* s, int nSteps, real_t dt)
         computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 27->1 deps
         advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
 
-        //printf("Tasks created at iteration %d = %d\n", ii, taskCounterArray[0]);
     }
     kineticEnergy(s);//reduction over atomP
     return s->ePotential;
@@ -61,7 +59,6 @@ void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
     real3 *atomP = s->atoms->p;
     real3 *atomF = s->atoms->f;
     for (int iBox=0; iBox<nBoxes; iBox++) {
-        taskCounterArray[12]++;//task12
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend(in: atomF[iBox*MAXATOMS])
         {
             startTimer(velocityTimer);
@@ -81,7 +78,6 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
     real3 *atomR = s->atoms->r;
     for (int iBox=0; iBox<nBoxes; iBox++)
     {
-        taskCounterArray[13]++;//task13
 #pragma omp task depend(inout: atomR[iBox*MAXATOMS]) depend(in: atomP[iBox*MAXATOMS])
         {
             startTimer(positionTimer);
@@ -104,9 +100,9 @@ void kineticEnergy(SimFlat* s)
 {
     real3  *atomP = s->atoms->p;
     for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
-        taskCounterArray[14]++; //task14
 #pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox*MAXATOMS])
         {
+            startTimer(KETimer);
             reductionArray[iBox] = 0.;
             for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
                 int iSpecies = s->atoms->iSpecies[iOff];
@@ -115,15 +111,17 @@ void kineticEnergy(SimFlat* s)
                                           s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
                                           s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
             }
+            stopTimer(KETimer);
         }
     }
     ompReduce(reductionArray, s->boxes->nLocalBoxes);
     real_t *eKinetic= &(s->eKinetic);
-        taskCounterArray[15]++;//task15
 #pragma omp task depend( in: reductionArray[0] ) depend( out: eKinetic[0] )
     {
+        startTimer(KEReduceTimer);
         s->eKinetic = reductionArray[0];
         reductionArray[0] = 0;
+        stopTimer(KEReduceTimer);
     }
 
 }

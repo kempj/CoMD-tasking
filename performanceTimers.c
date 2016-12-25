@@ -48,17 +48,25 @@ static void timerStats(void);
 /// Leading spaces can be specified to show a hierarchy of timers.
 char* timerName[numberOfTimers] = {
    "total",
+   "temperature",
+   "  vcm1",
+   "  vcm2", 
+   "  vcm3", 
+   "  vcm4", 
+   "temp2",
+   "random init",
    "loop",
    "timestep",
    "  position",
    "  velocity",
    "  redistribute",
-   "    atomHalo",
+   "  redist copy",
    "  force",
-   "    eamHalo",
-   "commHalo",
-   "commReduce",
-   "ompReduce"
+   "  ePot reduce",
+   "  KE", 
+   "  KE reduce", 
+   "  Printing", 
+   "  ompReduce"
 };
 
 /// Timer data collected.  Also facilitates computing averages and

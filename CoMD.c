@@ -91,7 +91,6 @@ real3 *r3ReductionArray;
 double *reductionArray;
 double globalEnergy;
 
-int *taskCounterArray;
 
 int main(int argc, char** argv)
 {
@@ -133,9 +132,9 @@ int main(int argc, char** argv)
     profileStart(loopTimer);
     for (; iStep<nSteps; )
     {
-        startTimer(commReduceTimer);
+        //startTimer(commReduceTimer);
         sumAtoms(sim);//TODO: This is a reduce of all local atom counts Can I combine this with KE?
-        stopTimer(commReduceTimer);
+        //stopTimer(commReduceTimer);
 
         printThings(sim, iStep, getElapsedTime(timestepTimer));
 
@@ -145,16 +144,12 @@ int main(int argc, char** argv)
         iStep += printRate;
 
     }
+#pragma omp taskwait
     profileStop(loopTimer);
 
     sumAtoms(sim);
     printThings(sim, iStep, getElapsedTime(timestepTimer));
-#pragma omp taskwait
     timestampBarrier("Ending simulation\n");
-    printf("Total tasks created: \n");
-    for(int i=0; i < 17; i++) {
-        printf("%d - %d\n", i, taskCounterArray[i]);
-    }
 
     // Epilog
     validateResult(validate, sim);
@@ -226,7 +221,6 @@ SimFlat* initSimulation(Command cmd)
 
     reductionArray = comdCalloc(sim->boxes->nTotalBoxes + 16, sizeof(double));
     r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes + 16, sizeof(real3));
-    taskCounterArray = comdCalloc(17, sizeof(int));
 
     setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
     randomDisplacements(cmd.initialDelta);//inout atomR, in atomP
@@ -366,9 +360,7 @@ void sumAtoms(SimFlat* s)
         s->atoms->nLocal += s->boxes->nAtoms[i];
     }
 
-    startTimer(commReduceTimer);
     addIntParallel(&s->atoms->nLocal, &s->atoms->nGlobal, 1);
-    stopTimer(commReduceTimer);
 }
 
 /// Prints current time, energy, performance etc to monitor the state of
@@ -380,9 +372,9 @@ void printThings(SimFlat* s, int iStep, double elapsedTime)
     real_t *eKinetic = &(sim->eKinetic);
     real_t *ePotential = &(s->ePotential);
 
-    taskCounterArray[16]++; //task16
 #pragma omp task depend(in: eKinetic[0], ePotential[0])
     {
+        startTimer(printTimer);
         // keep track previous value of iStep so we can calculate number of steps.
         static int iStepPrev = -1; 
         static int firstCall = 1;
@@ -409,6 +401,7 @@ void printThings(SimFlat* s, int iStep, double elapsedTime)
 
         fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %10.4f %12d\n",
                 iStep, time, eTotal, eU, eK, Temp, timePerAtom, s->atoms->nGlobal);
+        stopTimer(printTimer);
     }
 }
 

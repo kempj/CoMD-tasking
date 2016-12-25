@@ -19,7 +19,6 @@
 extern struct SimFlatSt* sim;
 extern real3 *r3ReductionArray;
 double *reductionArray;
-extern int *taskCounterArray;
 
 real_t vInit[3] = {0., 0., 0.};
 
@@ -111,19 +110,21 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 /// \param [in] newVcm The desired center of mass velocity.
 void setVcm()
 {
-    taskCounterArray[5]++; //task5
+    //TODO: get rid of this task by merging with next one
 #pragma omp task depend(inout: reductionArray[0], r3ReductionArray[0][0])
     {
+        startTimer(vcm1Timer);
         reductionArray[0] = 0.;
         r3ReductionArray[0][0] = 0.;
         r3ReductionArray[0][1] = 0.;
         r3ReductionArray[0][2] = 0.;
+        stopTimer(vcm1Timer);
     }
     real3 *atomP = sim->atoms->p;
     for (int iBox=0; iBox < sim->boxes->nLocalBoxes; ++iBox) {
-        taskCounterArray[6]++; //task6
 #pragma omp task depend( in: atomP[iBox*MAXATOMS]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
         {
+            startTimer(vcm2Timer);
             int Off = MAXATOMS*iBox;
             for (int ii=0; ii < sim->boxes->nAtoms[iBox]; ++ii) {
                 r3ReductionArray[iBox][0] += sim->atoms->p[Off+ii][0];
@@ -133,14 +134,15 @@ void setVcm()
                 int iSpecies = sim->atoms->iSpecies[Off+ii];
                 reductionArray[iBox] += sim->species[iSpecies].mass;
             }
+            stopTimer(vcm2Timer);
         }
     }
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
     ompReduce(reductionArray, sim->boxes->nLocalBoxes);
 
-    taskCounterArray[7]++; //task7
 #pragma omp task depend(inout: r3ReductionArray[0], reductionArray[0]) depend( out: vInit[0])
     {
+        startTimer(vcm3Timer);
         real_t v3 = reductionArray[0]; 
         vInit[0] -= r3ReductionArray[0][0]/v3;
         vInit[1] -= r3ReductionArray[0][1]/v3;
@@ -149,18 +151,22 @@ void setVcm()
         r3ReductionArray[0][0] = 0;
         r3ReductionArray[0][1] = 0;
         r3ReductionArray[0][2] = 0;
+        stopTimer(vcm3Timer);
     }
 
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-        taskCounterArray[8]++; //task8
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend(in: vInit[0])
-        for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-            int iSpecies = sim->atoms->iSpecies[iOff];
-            real_t mass = sim->species[iSpecies].mass;
-
-            sim->atoms->p[iOff][0] += mass * vInit[0];
-            sim->atoms->p[iOff][1] += mass * vInit[1];
-            sim->atoms->p[iOff][2] += mass * vInit[2];
+        {
+            startTimer(vcm4Timer);
+            for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                int iSpecies = sim->atoms->iSpecies[iOff];
+                real_t mass = sim->species[iSpecies].mass;
+    
+                sim->atoms->p[iOff][0] += mass * vInit[0];
+                sim->atoms->p[iOff][1] += mass * vInit[1];
+                sim->atoms->p[iOff][2] += mass * vInit[2];
+            }
+            stopTimer(vcm4Timer);
         }
     }
 }
@@ -169,16 +175,19 @@ void setTemperature(real_t temperature)
 {
     real3 *atomP = sim->atoms->p;
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-        taskCounterArray[9]++; //task9
 #pragma omp task depend(out: atomP[iBox*MAXATOMS])
-        for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-            int iType = sim->atoms->iSpecies[iOff];
-            real_t mass = sim->species[iType].mass;
-            real_t sigma = sqrt(kB_eV * temperature/mass);
-            uint64_t seed = mkSeed(sim->atoms->gid[iOff], 123);
-            sim->atoms->p[iOff][0] = mass * sigma * gasdev(&seed);
-            sim->atoms->p[iOff][1] = mass * sigma * gasdev(&seed);
-            sim->atoms->p[iOff][2] = mass * sigma * gasdev(&seed);
+        {
+            startTimer(temp1Timer);
+            for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                int iType = sim->atoms->iSpecies[iOff];
+                real_t mass = sim->species[iType].mass;
+                real_t sigma = sqrt(kB_eV * temperature/mass);
+                uint64_t seed = mkSeed(sim->atoms->gid[iOff], 123);
+                sim->atoms->p[iOff][0] = mass * sigma * gasdev(&seed);
+                sim->atoms->p[iOff][1] = mass * sigma * gasdev(&seed);
+                sim->atoms->p[iOff][2] = mass * sigma * gasdev(&seed);
+            }
+            stopTimer(temp1Timer);
         }
     }
     if (temperature == 0.0)
@@ -189,9 +198,9 @@ void setTemperature(real_t temperature)
     real_t *eKinetic = &(sim->eKinetic);
 
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-        taskCounterArray[10]++; //task10
 #pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend( in: eKinetic[0])
         {
+            startTimer(temp2Timer);
             real_t temp = (sim->eKinetic/sim->atoms->nGlobal)/kB_eV/1.5;
             real_t scaleFactor = sqrt(temperature/temp);
             for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
@@ -199,6 +208,7 @@ void setTemperature(real_t temperature)
                 sim->atoms->p[iOff][1] *= scaleFactor;
                 sim->atoms->p[iOff][2] *= scaleFactor;
             }
+            stopTimer(temp2Timer);
         }
     }
     kineticEnergy(sim);
@@ -213,15 +223,17 @@ void randomDisplacements(real_t delta)
     real3 *atomR = sim->atoms->r;
     real3 *atomP = sim->atoms->p; //AtomP used so setTemp is done before this begins.
     for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-        taskCounterArray[11]++; //task11
 #pragma omp task depend(inout: atomR[iBox*MAXATOMS][0]) \
                  depend(in   : atomP[iBox*MAXATOMS])
-        for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-            uint64_t seed = mkSeed(sim->atoms->gid[iOff], 457);
-            sim->atoms->r[iOff][0] += (2.0*lcg61(&seed)-1.0) * delta;
-            sim->atoms->r[iOff][1] += (2.0*lcg61(&seed)-1.0) * delta;
-            sim->atoms->r[iOff][2] += (2.0*lcg61(&seed)-1.0) * delta;
-
+        {
+            startTimer(displacementTimer);
+            for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                uint64_t seed = mkSeed(sim->atoms->gid[iOff], 457);
+                sim->atoms->r[iOff][0] += (2.0*lcg61(&seed)-1.0) * delta;
+                sim->atoms->r[iOff][1] += (2.0*lcg61(&seed)-1.0) * delta;
+                sim->atoms->r[iOff][2] += (2.0*lcg61(&seed)-1.0) * delta;
+            }
+            stopTimer(displacementTimer);
         }
     }
 }
