@@ -40,6 +40,8 @@
 #include "parallel.h"
 #include "yamlOutput.h"
 
+#include <omp.h>
+
 static uint64_t getTime(void);
 static double getTick(void);
 static void timerStats(void);
@@ -119,50 +121,61 @@ double getElapsedTime(const enum TimerHandle handle)
 /// information over all ranks.
 void printPerformanceResults(int nGlobalAtoms)
 {
-   // Collect timer statistics overall and across ranks
-   timerStats();
+    // Collect timer statistics overall and across ranks
+    timerStats();
 
-   if (!printRank())
-      return;
+    if (!printRank())
+        return;
 
-   // only print timers with non-zero values.
-   double tick = getTick();
-   double loopTime = perfTimer[loopTimer].total*tick;
-   
-   fprintf(screenOut, "\n\nTimings for Rank %d\n", getMyRank());
-   fprintf(screenOut, "        Timer        # Calls    Avg/Call (ms)      Total (s)    %% Loop\n");
-   fprintf(screenOut, "___________________________________________________________________\n");
-   for (int ii=0; ii<numberOfTimers; ++ii)
-   {
-      double totalTime = perfTimer[ii].total*tick;
-      if (perfTimer[ii].count > 0)
-         fprintf(screenOut, "%-16s%12"PRIu64"     %11.4f      %8.4f    %8.2f\n", 
-                 timerName[ii],
-                 perfTimer[ii].count,
-                 1000*totalTime/(double)perfTimer[ii].count,
-                 totalTime,
-                 totalTime/loopTime*100.0);
-   }
+    // only print timers with non-zero values.
+    double tick = getTick();
+    double loopTime = perfTimer[loopTimer].total*tick;
+    uint64_t taskTimeTotal = 0;
+    uint64_t totalTasks = 0;
 
-   fprintf(screenOut, "\nTiming Statistics Across %d Ranks:\n", getNRanks());
-   fprintf(screenOut, "        Timer        Rank: Min(s)       Rank: Max(s)      Avg(s)    Stdev(s)\n");
-   fprintf(screenOut, "_____________________________________________________________________________\n");
+    fprintf(screenOut, "\n\nTimings for Rank %d\n", getMyRank());
+    fprintf(screenOut, "        Timer        # Calls    Avg/Call (ms)      Total (s)    %% Loop\n");
+    fprintf(screenOut, "___________________________________________________________________\n");
+    for (int ii=0; ii<numberOfTimers; ++ii) {
+        double totalTime = perfTimer[ii].total*tick;
+        if (perfTimer[ii].count > 0) {
+            fprintf(screenOut, "%-16s%12"PRIu64"     %11.4f      %8.4f    %8.2f\n", 
+                    timerName[ii],
+                    perfTimer[ii].count,
+                    1000*totalTime/(double)perfTimer[ii].count,
+                    totalTime,
+                    totalTime/loopTime*100.0);
+            if(ii != loopTimer && ii != totalTimer && ii != timestepTimer) {
+                taskTimeTotal += perfTimer[ii].total;
+                totalTasks += perfTimer[ii].count;
+            }
+        }
+    }
+    double totalParTime =  perfTimer[totalTimer].total * tick * omp_get_num_threads();
+    printf("total time = %f\n", totalParTime);
+    printf("total task time = %f\n", taskTimeTotal*tick);
+    printf("overhead = %f\n", totalParTime - (taskTimeTotal*tick));
 
-   for (int ii = 0; ii < numberOfTimers; ++ii)
-   {
-      if (perfTimer[ii].count > 0)
-         fprintf(screenOut, "%-16s%6d:%10.4f  %6d:%10.4f  %10.4f  %10.4f\n", 
-            timerName[ii], 
-            perfTimer[ii].minRank, perfTimer[ii].minValue*tick,
-            perfTimer[ii].maxRank, perfTimer[ii].maxValue*tick,
-            perfTimer[ii].average*tick, perfTimer[ii].stdev*tick);
-   }
-   real_t atomsPerTask = nGlobalAtoms/(real_t)getNRanks();
-   real_t atomRate = perfTimer[computeForceTimer].average * tick * 1e6 /
-      (atomsPerTask * perfTimer[computeForceTimer].count);
-   fprintf(screenOut, "\n---------------------------------------------------\n");
-   fprintf(screenOut, " Average atom update rate: %6.2f us/atom/task\n", atomRate);
-   fprintf(screenOut, "---------------------------------------------------\n\n");
+    if(getNRanks() > 1) {
+        fprintf(screenOut, "\nTiming Statistics Across %d Ranks:\n", getNRanks());
+        fprintf(screenOut, "        Timer        Rank: Min(s)       Rank: Max(s)      Avg(s)    Stdev(s)\n");
+        fprintf(screenOut, "_____________________________________________________________________________\n");
+
+        for (int ii = 0; ii < numberOfTimers; ++ii) {
+            if(perfTimer[ii].count > 0)
+                fprintf(screenOut, "%-16s%6d:%10.4f  %6d:%10.4f  %10.4f  %10.4f\n", 
+                        timerName[ii], 
+                        perfTimer[ii].minRank, perfTimer[ii].minValue*tick,
+                        perfTimer[ii].maxRank, perfTimer[ii].maxValue*tick,
+                        perfTimer[ii].average*tick, perfTimer[ii].stdev*tick);
+        }
+        real_t atomsPerTask = nGlobalAtoms/(real_t)getNRanks();
+        real_t atomRate = perfTimer[computeForceTimer].average * tick * 1e6 /
+            (atomsPerTask * perfTimer[computeForceTimer].count);
+        fprintf(screenOut, "\n---------------------------------------------------\n");
+        fprintf(screenOut, " Average atom update rate: %6.2f us/atom/task\n", atomRate);
+        fprintf(screenOut, "---------------------------------------------------\n\n");
+    }
 }
 
 void printPerformanceResultsYaml(FILE* file)

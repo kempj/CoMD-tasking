@@ -111,21 +111,23 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 void setVcm()
 {
     //TODO: get rid of this task by merging with next one
-#pragma omp task depend(inout: reductionArray[0], r3ReductionArray[0][0])
-    {
-        startTimer(vcm1Timer);
-        reductionArray[0] = 0.;
-        r3ReductionArray[0][0] = 0.;
-        r3ReductionArray[0][1] = 0.;
-        r3ReductionArray[0][2] = 0.;
-        stopTimer(vcm1Timer);
-    }
+//#pragma omp task depend(inout: reductionArray[0], r3ReductionArray[0][0])
+//    {
+//        startTimer(vcm1Timer);
+//        reductionArray[0] = 0.;
+//        r3ReductionArray[0][0] = 0.;
+//        r3ReductionArray[0][1] = 0.;
+//        r3ReductionArray[0][2] = 0.;
+//        stopTimer(vcm1Timer);
+//    }
     real3 *atomP = sim->atoms->p;
     for (int iBox=0; iBox < sim->boxes->nLocalBoxes; ++iBox) {
 #pragma omp task depend( in: atomP[iBox*MAXATOMS]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
         {
             startTimer(vcm2Timer);
             int Off = MAXATOMS*iBox;
+            reductionArray[iBox] = 0;
+            zeroReal3(r3ReductionArray[iBox]);
             for (int ii=0; ii < sim->boxes->nAtoms[iBox]; ++ii) {
                 r3ReductionArray[iBox][0] += sim->atoms->p[Off+ii][0];
                 r3ReductionArray[iBox][1] += sim->atoms->p[Off+ii][1];

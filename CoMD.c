@@ -382,8 +382,7 @@ void printThings(SimFlat* s, int iStep, double elapsedTime)
         int nEval = iStep - iStepPrev; // gives nEval = 1 for zeroth step.
         iStepPrev = iStep;
 
-        if (firstCall)
-        {
+        if (firstCall) {
             firstCall = 0;
             fprintf(screenOut, 
                     "#                                                                                         Performance\n" 
