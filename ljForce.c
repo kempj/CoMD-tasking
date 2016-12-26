@@ -232,11 +232,14 @@ int ljForce(SimFlat* s)
     real_t *atomU = s->atoms->U;
     int neighbors[27];
 
-    for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
-        for(int nBox=0; nBox < 27; nBox++) {
-            neighbors[nBox] =  s->boxes->nbrBoxes[iBox][nBox];
-        }
-#pragma omp task depend(out: atomU[iBox*MAXATOMS], reductionArray[iBox], atomF[iBox*MAXATOMS]) \
+    //for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
+    for(int z=0; z < s->boxes->gridSize[2]; z++) {
+        for(int y=0; y < s->boxes->gridSize[1]; y++) {
+            int rowBox = z*s->boxes->gridSize[1]+y*s->boxes->gridSize[0]*s->boxes->gridSize[0];
+            for(int nBox=0; nBox < 27; nBox++) {
+                neighbors[nBox] =  s->boxes->nbrBoxes[rowBox][nBox];
+            }
+#pragma omp task depend(out: atomU[rowBox*MAXATOMS], reductionArray[rowBox], atomF[rowBox*MAXATOMS]) \
                  depend( in: atomR[neighbors[0 ]*MAXATOMS], atomR[neighbors[1 ]*MAXATOMS], atomR[neighbors[2 ]*MAXATOMS], \
                              atomR[neighbors[3 ]*MAXATOMS], atomR[neighbors[4 ]*MAXATOMS], atomR[neighbors[5 ]*MAXATOMS], \
                              atomR[neighbors[6 ]*MAXATOMS], atomR[neighbors[7 ]*MAXATOMS], atomR[neighbors[8 ]*MAXATOMS], \
@@ -246,14 +249,18 @@ int ljForce(SimFlat* s)
                              atomR[neighbors[18]*MAXATOMS], atomR[neighbors[19]*MAXATOMS], atomR[neighbors[20]*MAXATOMS], \
                              atomR[neighbors[21]*MAXATOMS], atomR[neighbors[22]*MAXATOMS], atomR[neighbors[23]*MAXATOMS], \
                              atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
-        {
-            startTimer(computeForceTimer);
-            for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
-                zeroReal3(s->atoms->f[ii]);
-                s->atoms->U[ii] = 0.;
+            {
+                startTimer(computeForceTimer);
+                for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
+                    //printf("for force, iBox = %d\n", iBox);
+                    for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
+                        zeroReal3(s->atoms->f[ii]);
+                        s->atoms->U[ii] = 0.;
+                    }
+                    boxForce(iBox, s);
+                }
+                stopTimer(computeForceTimer);
             }
-            boxForce(iBox, s);
-            stopTimer(computeForceTimer);
         }
     }
     ompReduce(reductionArray, s->boxes->nLocalBoxes);

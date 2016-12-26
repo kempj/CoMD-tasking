@@ -227,6 +227,16 @@ SimFlat* initSimulation(Command cmd)
 
     //sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
 
+    //printf("local boxes = %d (%d, %d, %d)\n", sim->boxes->nLocalBoxes, sim->boxes->gridSize[0], sim->boxes->gridSize[1], sim->boxes->gridSize[2]);
+    //for(int z=0; z < sim->boxes->gridSize[2]; z++) {
+    //    for(int y=0; y < sim->boxes->gridSize[1]; y++) {
+    //        for(int x=0; x < sim->boxes->gridSize[0]; x++) {
+    //            //printf("iBox = %d, (%d, %d, %d) ", z*sim->boxes->gridSize[1] + y*sim->boxes->gridSize[0] + x, z, y, x);
+    //            //printf(" = %d + %d + %d \n", z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0], y*sim->boxes->gridSize[0], x);
+    //        }
+    //        //printf("\n");
+    //    }
+    //}
     startTimer(redistributeTimer);
     redistributeAtoms(sim);//inout: atomP, atomR
     stopTimer(redistributeTimer);

@@ -58,16 +58,22 @@ void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
 {
     real3 *atomP = s->atoms->p;
     real3 *atomF = s->atoms->f;
-    for (int iBox=0; iBox<nBoxes; iBox++) {
-#pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend(in: atomF[iBox*MAXATOMS])
-        {
-            startTimer(velocityTimer);
-            for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
-                s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
-                s->atoms->p[iOff][1] += dt*s->atoms->f[iOff][1];
-                s->atoms->p[iOff][2] += dt*s->atoms->f[iOff][2];
+    //for (int iBox=0; iBox<nBoxes; iBox++) {
+    for(int z=0; z < s->boxes->gridSize[2]; z++) {
+        for(int y=0; y < s->boxes->gridSize[1]; y++) {
+            int rowBox = z*s->boxes->gridSize[1]*s->boxes->gridSize[0] + y*s->boxes->gridSize[0];
+#pragma omp task depend(inout: atomP[rowBox*MAXATOMS]) depend(in: atomF[rowBox*MAXATOMS])
+            {
+                startTimer(velocityTimer);
+                for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
+                    for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                        s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
+                        s->atoms->p[iOff][1] += dt*s->atoms->f[iOff][1];
+                        s->atoms->p[iOff][2] += dt*s->atoms->f[iOff][2];
+                    }
+                }
+                stopTimer(velocityTimer);
             }
-            stopTimer(velocityTimer);
         }
     }
 }
@@ -76,20 +82,24 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 {
     real3 *atomP = s->atoms->p;
     real3 *atomR = s->atoms->r;
-    for (int iBox=0; iBox<nBoxes; iBox++)
-    {
-#pragma omp task depend(inout: atomR[iBox*MAXATOMS]) depend(in: atomP[iBox*MAXATOMS])
-        {
-            startTimer(positionTimer);
-            for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++)
+    //for (int iBox=0; iBox<nBoxes; iBox++) {
+    for(int z=0; z < s->boxes->gridSize[2]; z++) {
+        for(int y=0; y < s->boxes->gridSize[1]; y++) {
+            int rowBox = z*s->boxes->gridSize[1]*s->boxes->gridSize[0]+y*s->boxes->gridSize[0];
+#pragma omp task depend(inout: atomR[rowBox*MAXATOMS]) depend(in: atomP[rowBox*MAXATOMS])
             {
-                int iSpecies = s->atoms->iSpecies[iOff];
-                real_t invMass = 1.0/s->species[iSpecies].mass;
-                s->atoms->r[iOff][0] += dt*s->atoms->p[iOff][0]*invMass;
-                s->atoms->r[iOff][1] += dt*s->atoms->p[iOff][1]*invMass;
-                s->atoms->r[iOff][2] += dt*s->atoms->p[iOff][2]*invMass;
+                startTimer(positionTimer);
+                for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
+                    for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                        int iSpecies = s->atoms->iSpecies[iOff];
+                        real_t invMass = 1.0/s->species[iSpecies].mass;
+                        s->atoms->r[iOff][0] += dt*s->atoms->p[iOff][0]*invMass;
+                        s->atoms->r[iOff][1] += dt*s->atoms->p[iOff][1]*invMass;
+                        s->atoms->r[iOff][2] += dt*s->atoms->p[iOff][2]*invMass;
+                    }
+                }
+                stopTimer(positionTimer);
             }
-            stopTimer(positionTimer);
         }
     }
 }
@@ -99,19 +109,25 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 void kineticEnergy(SimFlat* s)
 {
     real3  *atomP = s->atoms->p;
-    for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
-#pragma omp task depend(out: reductionArray[iBox]) depend( in: atomP[iBox*MAXATOMS])
-        {
-            startTimer(KETimer);
-            reductionArray[iBox] = 0.;
-            for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
-                int iSpecies = s->atoms->iSpecies[iOff];
-                real_t invMass = 0.5/s->species[iSpecies].mass;
-                reductionArray[iBox] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
-                                          s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
-                                          s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
+    //for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
+    for(int z=0; z < s->boxes->gridSize[2]; z++) {
+        for(int y=0; y < s->boxes->gridSize[1]; y++) {
+            int rowBox = z*s->boxes->gridSize[1]*s->boxes->gridSize[0]+y*s->boxes->gridSize[0];
+#pragma omp task depend(out: reductionArray[rowBox]) depend( in: atomP[rowBox*MAXATOMS])
+            {
+                startTimer(KETimer);
+                for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
+                    reductionArray[iBox] = 0.;
+                    for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                        int iSpecies = s->atoms->iSpecies[iOff];
+                        real_t invMass = 0.5/s->species[iSpecies].mass;
+                        reductionArray[iBox] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
+                                                  s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
+                                                  s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
+                    }
+                }
+                stopTimer(KETimer);
             }
-            stopTimer(KETimer);
         }
     }
     ompReduce(reductionArray, s->boxes->nLocalBoxes);

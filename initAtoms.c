@@ -110,33 +110,29 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 /// \param [in] newVcm The desired center of mass velocity.
 void setVcm()
 {
-    //TODO: get rid of this task by merging with next one
-//#pragma omp task depend(inout: reductionArray[0], r3ReductionArray[0][0])
-//    {
-//        startTimer(vcm1Timer);
-//        reductionArray[0] = 0.;
-//        r3ReductionArray[0][0] = 0.;
-//        r3ReductionArray[0][1] = 0.;
-//        r3ReductionArray[0][2] = 0.;
-//        stopTimer(vcm1Timer);
-//    }
     real3 *atomP = sim->atoms->p;
-    for (int iBox=0; iBox < sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend( in: atomP[iBox*MAXATOMS]) depend( out: r3ReductionArray[iBox], reductionArray[iBox] )
-        {
-            startTimer(vcm2Timer);
-            int Off = MAXATOMS*iBox;
-            reductionArray[iBox] = 0;
-            zeroReal3(r3ReductionArray[iBox]);
-            for (int ii=0; ii < sim->boxes->nAtoms[iBox]; ++ii) {
-                r3ReductionArray[iBox][0] += sim->atoms->p[Off+ii][0];
-                r3ReductionArray[iBox][1] += sim->atoms->p[Off+ii][1];
-                r3ReductionArray[iBox][2] += sim->atoms->p[Off+ii][2];
+    //for (int iBox=0; iBox < sim->boxes->nLocalBoxes; ++iBox) {
+    for(int z=0; z < sim->boxes->gridSize[2]; z++) {
+        for(int y=0; y < sim->boxes->gridSize[1]; y++) {
+            int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
+#pragma omp task depend( in: atomP[rowBox*MAXATOMS]) depend( out: r3ReductionArray[rowBox], reductionArray[rowBox] )
+            {
+                startTimer(vcm2Timer);
+                for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
+                    int Off = MAXATOMS*iBox;
+                    reductionArray[iBox] = 0;
+                    zeroReal3(r3ReductionArray[iBox]);
+                    for(int ii=0; ii < sim->boxes->nAtoms[iBox]; ++ii) {
+                        r3ReductionArray[iBox][0] += sim->atoms->p[Off+ii][0];
+                        r3ReductionArray[iBox][1] += sim->atoms->p[Off+ii][1];
+                        r3ReductionArray[iBox][2] += sim->atoms->p[Off+ii][2];
 
-                int iSpecies = sim->atoms->iSpecies[Off+ii];
-                reductionArray[iBox] += sim->species[iSpecies].mass;
+                        int iSpecies = sim->atoms->iSpecies[Off+ii];
+                        reductionArray[iBox] += sim->species[iSpecies].mass;
+                    }
+                }
+                stopTimer(vcm2Timer);
             }
-            stopTimer(vcm2Timer);
         }
     }
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
@@ -156,19 +152,25 @@ void setVcm()
         stopTimer(vcm3Timer);
     }
 
-    for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend(in: vInit[0])
-        {
-            startTimer(vcm4Timer);
-            for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-                int iSpecies = sim->atoms->iSpecies[iOff];
-                real_t mass = sim->species[iSpecies].mass;
-    
-                sim->atoms->p[iOff][0] += mass * vInit[0];
-                sim->atoms->p[iOff][1] += mass * vInit[1];
-                sim->atoms->p[iOff][2] += mass * vInit[2];
+    //for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
+    for(int z=0; z < sim->boxes->gridSize[2]; z++) {
+        for(int y=0; y < sim->boxes->gridSize[1]; y++) {
+            int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
+#pragma omp task depend(inout: atomP[rowBox*MAXATOMS]) depend(in: vInit[0])
+            {
+                startTimer(vcm4Timer);
+                for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
+                    for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                        int iSpecies = sim->atoms->iSpecies[iOff];
+                        real_t mass = sim->species[iSpecies].mass;
+
+                        sim->atoms->p[iOff][0] += mass * vInit[0];
+                        sim->atoms->p[iOff][1] += mass * vInit[1];
+                        sim->atoms->p[iOff][2] += mass * vInit[2];
+                    }
+                }
+                stopTimer(vcm4Timer);
             }
-            stopTimer(vcm4Timer);
         }
     }
 }
@@ -176,20 +178,26 @@ void setVcm()
 void setTemperature(real_t temperature)
 {
     real3 *atomP = sim->atoms->p;
-    for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(out: atomP[iBox*MAXATOMS])
-        {
-            startTimer(temp1Timer);
-            for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-                int iType = sim->atoms->iSpecies[iOff];
-                real_t mass = sim->species[iType].mass;
-                real_t sigma = sqrt(kB_eV * temperature/mass);
-                uint64_t seed = mkSeed(sim->atoms->gid[iOff], 123);
-                sim->atoms->p[iOff][0] = mass * sigma * gasdev(&seed);
-                sim->atoms->p[iOff][1] = mass * sigma * gasdev(&seed);
-                sim->atoms->p[iOff][2] = mass * sigma * gasdev(&seed);
+    //for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
+    for(int z=0; z < sim->boxes->gridSize[2]; z++) {
+        for(int y=0; y < sim->boxes->gridSize[1]; y++) {
+            int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
+#pragma omp task depend(out: atomP[rowBox*MAXATOMS])
+            {
+                startTimer(temp1Timer);
+                for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
+                    for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                        int iType = sim->atoms->iSpecies[iOff];
+                        real_t mass = sim->species[iType].mass;
+                        real_t sigma = sqrt(kB_eV * temperature/mass);
+                        uint64_t seed = mkSeed(sim->atoms->gid[iOff], 123);
+                        sim->atoms->p[iOff][0] = mass * sigma * gasdev(&seed);
+                        sim->atoms->p[iOff][1] = mass * sigma * gasdev(&seed);
+                        sim->atoms->p[iOff][2] = mass * sigma * gasdev(&seed);
+                    }
+                }
+                stopTimer(temp1Timer);
             }
-            stopTimer(temp1Timer);
         }
     }
     if (temperature == 0.0)
@@ -199,18 +207,24 @@ void setTemperature(real_t temperature)
     
     real_t *eKinetic = &(sim->eKinetic);
 
-    for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(inout: atomP[iBox*MAXATOMS]) depend( in: eKinetic[0])
-        {
-            startTimer(temp2Timer);
-            real_t temp = (sim->eKinetic/sim->atoms->nGlobal)/kB_eV/1.5;
-            real_t scaleFactor = sqrt(temperature/temp);
-            for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-                sim->atoms->p[iOff][0] *= scaleFactor;
-                sim->atoms->p[iOff][1] *= scaleFactor;
-                sim->atoms->p[iOff][2] *= scaleFactor;
-            }
+    //for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
+    for(int z=0; z < sim->boxes->gridSize[2]; z++) {
+        for(int y=0; y < sim->boxes->gridSize[1]; y++) {
+            int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
+#pragma omp task depend(inout: atomP[rowBox*MAXATOMS]) depend( in: eKinetic[0])
+            {
+                startTimer(temp2Timer);
+                for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
+                    real_t temp = (sim->eKinetic/sim->atoms->nGlobal)/kB_eV/1.5;
+                    real_t scaleFactor = sqrt(temperature/temp);
+                    for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                        sim->atoms->p[iOff][0] *= scaleFactor;
+                        sim->atoms->p[iOff][1] *= scaleFactor;
+                        sim->atoms->p[iOff][2] *= scaleFactor;
+                    }
+                }
             stopTimer(temp2Timer);
+            }
         }
     }
     kineticEnergy(sim);
@@ -224,18 +238,24 @@ void randomDisplacements(real_t delta)
 {
     real3 *atomR = sim->atoms->r;
     real3 *atomP = sim->atoms->p; //AtomP used so setTemp is done before this begins.
-    for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
-#pragma omp task depend(inout: atomR[iBox*MAXATOMS][0]) \
-                 depend(in   : atomP[iBox*MAXATOMS])
-        {
-            startTimer(displacementTimer);
-            for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
-                uint64_t seed = mkSeed(sim->atoms->gid[iOff], 457);
-                sim->atoms->r[iOff][0] += (2.0*lcg61(&seed)-1.0) * delta;
-                sim->atoms->r[iOff][1] += (2.0*lcg61(&seed)-1.0) * delta;
-                sim->atoms->r[iOff][2] += (2.0*lcg61(&seed)-1.0) * delta;
+    //for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
+    for(int z=0; z < sim->boxes->gridSize[2]; z++) {
+        for(int y=0; y < sim->boxes->gridSize[1]; y++) {
+            int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
+#pragma omp task depend(inout: atomR[rowBox*MAXATOMS][0]) \
+                 depend(in   : atomP[rowBox*MAXATOMS])
+            {
+                startTimer(displacementTimer);
+                for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
+                    for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                        uint64_t seed = mkSeed(sim->atoms->gid[iOff], 457);
+                        sim->atoms->r[iOff][0] += (2.0*lcg61(&seed)-1.0) * delta;
+                        sim->atoms->r[iOff][1] += (2.0*lcg61(&seed)-1.0) * delta;
+                        sim->atoms->r[iOff][2] += (2.0*lcg61(&seed)-1.0) * delta;
+                    }
+                }
+                stopTimer(displacementTimer);
             }
-            stopTimer(displacementTimer);
         }
     }
 }
