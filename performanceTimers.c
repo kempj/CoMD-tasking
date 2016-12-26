@@ -68,7 +68,9 @@ char* timerName[numberOfTimers] = {
    "  KE", 
    "  KE reduce", 
    "  Printing", 
-   "  ompReduce"
+   "  ompReduce",
+   "halo timer",
+   "eam timer"
 };
 
 /// Timer data collected.  Also facilitates computing averages and

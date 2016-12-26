@@ -14,7 +14,9 @@ enum TimerHandle{totalTimer, temp1Timer,
                  redistributeTimer, redistributeSortTimer,
                  computeForceTimer, ePotReductionTimer,
                  KETimer, KEReduceTimer, printTimer,
-                 ompReduceTimer, numberOfTimers};
+                 ompReduceTimer, 
+                 commHaloTimer, eamHaloTimer,
+                 numberOfTimers};
 
 /// Use the startTimer and stopTimer macros for timers in code regions
 /// that may be performance sensitive.  These can be compiled away by
