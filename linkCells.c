@@ -182,7 +182,8 @@ void getNeighborRows(LinkCell* boxes, int y, int z, int* nbrBoxes)
     int sizeY = boxes->gridSize[1];
     int sizeZ = boxes->gridSize[2];
 
-    for(int i=z-1; i<z+1; i++) {
+    //printf("raw neighbor rows for row %d = (%d, %d) are: \n", z*sizeY*sizeX +y*sizeX, z, y);
+    for(int i=z-1; i<=z+1; i++) {
         int localZ = i;
         if(i < 0) {
             localZ = sizeZ-1;
@@ -190,7 +191,7 @@ void getNeighborRows(LinkCell* boxes, int y, int z, int* nbrBoxes)
         if(i > sizeZ-1) {
                 localZ = 0;
         }
-        for(int j=y-1; j<y+1; j++) {
+        for(int j=y-1; j<=y+1; j++) {
             int localY = j;
             if(j < 0) {
                 localY = sizeY-1;
@@ -199,8 +200,19 @@ void getNeighborRows(LinkCell* boxes, int y, int z, int* nbrBoxes)
                 localY = 0;
             }
             nbrBoxes[(i-z+1)*3 + (j-y+1)] = localZ * sizeY * sizeX + localY *sizeX;
+            //printf("(%d, %d) = %d ", i, j, getBoxFromTuple(boxes, i, j, 0));
         }
+        //printf("\n");
     }
+    //printf("neighbor rows for row %d = (%d, %d) are: \n", z*sizeY*sizeX +y*sizeX, z, y);
+//    for(int i=0; i < 3; i++) {
+//        for(int j=0; j < 3; j++) {
+            //printf("%d ", nbrBoxes[i*3+j]);
+//        }
+        //printf("\n");
+//    }
+//    printf("\n");
+
 }
 
 /// \details
