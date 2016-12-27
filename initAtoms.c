@@ -118,7 +118,7 @@ void setVcm()
 #pragma omp task depend( in: atomP[rowBox*MAXATOMS]) depend( out: r3ReductionArray[rowBox], reductionArray[rowBox] )
             {
                 startTimer(vcm2Timer);
-                printf("vcm2 for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
+                //printf("vcm2 for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     int Off = MAXATOMS*iBox;
                     reductionArray[iBox] = 0;
@@ -136,9 +136,9 @@ void setVcm()
             }
         }
     }
-#pragma omp taskwait
     ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
-    ompReduce(reductionArray, sim->boxes->nLocalBoxes);
+    //ompReduce(reductionArray, sim->boxes->nLocalBoxes);
+    ompReduceRowReal(reductionArray, sim->boxes->gridSize);
 
 #pragma omp task depend(inout: r3ReductionArray[0], reductionArray[0]) depend( out: vInit[0])
     {
@@ -161,7 +161,7 @@ void setVcm()
 #pragma omp task depend(inout: atomP[rowBox*MAXATOMS]) depend(in: vInit[0])
             {
                 startTimer(vcm4Timer);
-                printf("vcm4 for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
+                //printf("vcm4 for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
                         int iSpecies = sim->atoms->iSpecies[iOff];
@@ -188,7 +188,7 @@ void setTemperature(real_t temperature)
 #pragma omp task depend(out: atomP[rowBox*MAXATOMS])
             {
                 startTimer(temp1Timer);
-                printf("temp1 for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
+                //printf("temp1 for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
                         int iType = sim->atoms->iSpecies[iOff];
@@ -218,7 +218,7 @@ void setTemperature(real_t temperature)
 #pragma omp task depend(inout: atomP[rowBox*MAXATOMS]) depend( in: eKinetic[0])
             {
                 startTimer(temp2Timer);
-                printf("temp2 for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
+                //printf("temp2 for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     real_t temp = (sim->eKinetic/sim->atoms->nGlobal)/kB_eV/1.5;
                     real_t scaleFactor = sqrt(temperature/temp);
@@ -251,7 +251,7 @@ void randomDisplacements(real_t delta)
                  depend(in   : atomP[rowBox*MAXATOMS])
             {
                 startTimer(displacementTimer);
-                printf("displacement for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
+                //printf("displacement for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
                         uint64_t seed = mkSeed(sim->atoms->gid[iOff], 457);

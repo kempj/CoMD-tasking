@@ -21,13 +21,8 @@ static int myRank = 0;
 static int nRanks = 1;
 
 
-
-
 void ompReduceStride(double *depArray, int arraySize, int depStride)
 {
-
-    //FIXME: at the end of the reduction array, the dependencies could depend on an any variables
-    //immediately after the array in memory.
     int reductionStride = 16*depStride;
     int innerStride = depStride;
     while( innerStride < (arraySize*depStride) ) { 
@@ -57,9 +52,64 @@ void ompReduceStride(double *depArray, int arraySize, int depStride)
     }
 }
 
-void ompReduce(double *depArray, int arraySize) {
+void ompReduce(double *depArray, int arraySize) 
+{
     ompReduceStride(depArray, arraySize, 1);
 }
+
+void ompReduceReal(double *depArray, int arraySize, int innerStride)
+{
+    int cellsPerTask = 16 * innerStride;
+    while( innerStride < arraySize ) { 
+        for(int iBox=0; iBox < arraySize; iBox +=cellsPerTask) {
+#pragma omp task depend(inout: depArray[iBox]) \
+                 depend(in   : depArray[iBox+   innerStride],\
+                               depArray[iBox+2 *innerStride], depArray[iBox+3 *innerStride],\
+                               depArray[iBox+4 *innerStride], depArray[iBox+5 *innerStride],\
+                               depArray[iBox+6 *innerStride], depArray[iBox+7 *innerStride],\
+                               depArray[iBox+8 *innerStride], depArray[iBox+9 *innerStride],\
+                               depArray[iBox+10*innerStride], depArray[iBox+11*innerStride],\
+                               depArray[iBox+12*innerStride], depArray[iBox+13*innerStride],\
+                               depArray[iBox+14*innerStride], depArray[iBox+15*innerStride])
+            {
+                startTimer(ompReduceTimer);
+                for(int i=iBox+innerStride; i<iBox+cellsPerTask && i<arraySize; i+=innerStride) {
+                    depArray[iBox] += depArray[i];
+                    depArray[i] = 0.;
+                }
+                stopTimer(ompReduceTimer);
+            }
+        }
+        innerStride = cellsPerTask;
+        cellsPerTask *= 16;
+    }
+}
+
+void reduceRowReal(double *depArrayRow, int rowSize) {
+    for(int i=1; i<rowSize; i++) {
+        depArrayRow[0] += depArrayRow[i];
+        depArrayRow[i] = 0;
+    }
+}
+
+void ompReduceRowReal(double *depArray, int gridSize[3]) 
+{
+    for(int z=0; z < gridSize[2]; z++) {
+        for(int y=0; y < gridSize[1]; y++) {
+            int rowBox = z*gridSize[1]*gridSize[0] + y*gridSize[0];
+#pragma omp task depend(inout: depArray[rowBox])
+            {
+                startTimer(ompReduceTimer);
+                reduceRowReal(&depArray[rowBox], gridSize[0]);
+                stopTimer(ompReduceTimer);
+            }
+        }
+    }
+    ompReduceReal(depArray, gridSize[0]*gridSize[1]*gridSize[2], gridSize[0]);
+}
+//{
+//    ompReduceStride(depArray, arraySize, 1);
+//}
 
 #ifdef DO_MPI
 #ifdef SINGLE

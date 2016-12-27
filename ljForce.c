@@ -251,7 +251,7 @@ int ljForce(SimFlat* s)
                              atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
             {
                 startTimer(computeForceTimer);
-                printf("Force sort for %d - %d\n", rowBox, rowBox + s->boxes->gridSize[0]);
+                //printf("Force sort for %d - %d\n", rowBox, rowBox + s->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
                     for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
                         zeroReal3(s->atoms->f[ii]);
@@ -263,8 +263,8 @@ int ljForce(SimFlat* s)
             }
         }
     }
-#pragma omp taskwait
-    ompReduce(reductionArray, s->boxes->nLocalBoxes);
+    //ompReduce(reductionArray, s->boxes->nLocalBoxes);
+    ompReduceRowReal(reductionArray, s->boxes->gridSize);
 
     real_t *ePotential = &(s->ePotential);
 #pragma omp task depend(inout: reductionArray[0]) depend(out: ePotential[0])

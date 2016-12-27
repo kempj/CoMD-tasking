@@ -18,6 +18,9 @@ void ompReduceStride(double *depArray, int arraySize, int depStride);
 /// reduce an array into it's first element
 void ompReduce(double *depArray, int arraySize);
 
+//void ompReduceRow(double *depArray, int gridSize[3]);
+void ompReduceRowReal(double *depArray, int gridSize[3]);
+
 
 /// Return total number of processors.
 int getNRanks(void);
