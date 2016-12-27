@@ -57,4 +57,6 @@ int maxOccupancy(LinkCell* boxes);
 void getTuple(LinkCell* boxes, int iBox, int* ixp, int* iyp, int* izp);
 int getLocalHaloTuple(LinkCell *boxes, int iBox);
 
+void getNeighborRows(LinkCell* boxes, int y, int z, int* nbrBoxes);
+
 #endif

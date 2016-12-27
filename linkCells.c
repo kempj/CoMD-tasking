@@ -176,6 +176,32 @@ int getLocalNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
     return count;
 }
 
+void getNeighborRows(LinkCell* boxes, int y, int z, int* nbrBoxes)
+{
+    int sizeX = boxes->gridSize[0];
+    int sizeY = boxes->gridSize[1];
+    int sizeZ = boxes->gridSize[2];
+
+    for(int i=z-1; i<z+1; i++) {
+        int localZ = i;
+        if(i < 0) {
+            localZ = sizeZ-1;
+        } 
+        if(i > sizeZ-1) {
+                localZ = 0;
+        }
+        for(int j=y-1; j<y+1; j++) {
+            int localY = j;
+            if(j < 0) {
+                localY = sizeY-1;
+            } 
+            if(j > sizeY-1) {
+                localY = 0;
+            }
+            nbrBoxes[(i-z+1)*3 + (j-y+1)] = localZ * sizeY * sizeX + localY *sizeX;
+        }
+    }
+}
 
 /// \details
 /// Populates the nbrBoxes array with the 27 boxes that are adjacent to
@@ -205,8 +231,6 @@ int getHaloNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
 {
     int ix, iy, iz;
     getTuple(boxes, iBox, &ix, &iy, &iz);
-    //const real_t* localMin = boxes->localMin; // alias
-    //const real_t* localMax = boxes->localMax; // alias
     const int* gridSize = boxes->gridSize; // alias
 
     int count = 0;

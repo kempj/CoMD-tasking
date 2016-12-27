@@ -21,44 +21,6 @@ static int myRank = 0;
 static int nRanks = 1;
 
 
-/*
-void ompReduceStride(real_t *depArray, int arraySize, int depStride)
-{
-    int reductionStride = 16*depStride;
-    int innerStride = depStride;
-    while( innerStride < (arraySize*depStride) ) { 
-        for(int boxNum=0; boxNum < (arraySize*depStride); boxNum +=reductionStride) {
-#pragma omp task depend(inout: depArray[boxNum]) \
-                 depend(in   : depArray[boxNum+   innerStride],\
-                               depArray[boxNum+2 *innerStride], depArray[boxNum+3 *innerStride],\
-                               depArray[boxNum+4 *innerStride], depArray[boxNum+5 *innerStride],\
-                               depArray[boxNum+6 *innerStride], depArray[boxNum+7 *innerStride],\
-                               depArray[boxNum+8 *innerStride], depArray[boxNum+9 *innerStride],\
-                               depArray[boxNum+10*innerStride], depArray[boxNum+11*innerStride],\
-                               depArray[boxNum+12*innerStride], depArray[boxNum+13*innerStride],\
-                               depArray[boxNum+14*innerStride], depArray[boxNum+15*innerStride])
-            {
-                startTimer(ompReduceTimer);
-                for(int i=boxNum+innerStride; i<(boxNum+reductionStride) && i<=((arraySize*depStride)-depStride); i += innerStride) {
-                    for(int j=0; j<depStride; j++) {
-                        depArray[boxNum+j] += depArray[i+j];
-                        depArray[i+j] = 0.;
-                    }
-                }
-                stopTimer(ompReduceTimer);
-            }
-        }
-        innerStride = reductionStride;
-        reductionStride *= 16;
-    }
-}
-
-void ompReduce(real_t *depArray, int arraySize) 
-{
-    ompReduceStride(depArray, arraySize, 1);
-}
-*/
-
 void reduceR3(real3 *depArray, int arraySize, int innerStride)
 {
     int cellsPerTask = 16 * innerStride;
