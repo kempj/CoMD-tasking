@@ -416,27 +416,17 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
     real3  *atomP = atoms->p;
     real3  *atomsBufferR = atomsBuffer->r;
 
-    int neighbors[27];
-    //for(int iBox=0; iBox<boxes->nLocalBoxes; iBox++) {
+    int dep[9];
     for(int z=0; z < sim->boxes->gridSize[2]; z++) {
         for(int y=0; y < sim->boxes->gridSize[1]; y++) {
             int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
-            for(int nBox=0; nBox < 27; nBox++) {
-                neighbors[nBox] = boxes->nbrBoxes[rowBox][nBox];//TODO: This only needs to be 9.
-            }
+            getNeighborRows(boxes, y, z, dep);
 #pragma omp task depend(out: atomsBufferR[rowBox*MAXATOMS]) \
-                 depend( in: atomR[neighbors[0 ]*MAXATOMS], atomR[neighbors[1 ]*MAXATOMS], atomR[neighbors[2 ]*MAXATOMS], \
-                             atomR[neighbors[3 ]*MAXATOMS], atomR[neighbors[4 ]*MAXATOMS], atomR[neighbors[5 ]*MAXATOMS], \
-                             atomR[neighbors[6 ]*MAXATOMS], atomR[neighbors[7 ]*MAXATOMS], atomR[neighbors[8 ]*MAXATOMS], \
-                             atomR[neighbors[9 ]*MAXATOMS], atomR[neighbors[10]*MAXATOMS], atomR[neighbors[11]*MAXATOMS], \
-                             atomR[neighbors[12]*MAXATOMS], atomR[neighbors[13]*MAXATOMS], atomR[neighbors[14]*MAXATOMS], \
-                             atomR[neighbors[15]*MAXATOMS], atomR[neighbors[16]*MAXATOMS], atomR[neighbors[17]*MAXATOMS], \
-                             atomR[neighbors[18]*MAXATOMS], atomR[neighbors[19]*MAXATOMS], atomR[neighbors[20]*MAXATOMS], \
-                             atomR[neighbors[21]*MAXATOMS], atomR[neighbors[22]*MAXATOMS], atomR[neighbors[23]*MAXATOMS], \
-                             atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
+                 depend( in: atomR[dep[0]*MAXATOMS], atomR[dep[1]*MAXATOMS], atomR[dep[2]*MAXATOMS], \
+                             atomR[dep[3]*MAXATOMS], atomR[dep[4]*MAXATOMS], atomR[dep[5]*MAXATOMS], \
+                             atomR[dep[6]*MAXATOMS], atomR[dep[7]*MAXATOMS], atomR[dep[8]*MAXATOMS] )
             {   //This task pulls all atoms that belong in cell iBox from multiple cells in the main buffer to cell iBox in the secondary buffer
                 startTimer(redistributeTimer);
-                //printf("redist for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     boxesBuffer->nAtoms[iBox] = 0;
                     int firstCopy = 0;
