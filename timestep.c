@@ -65,6 +65,7 @@ void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
 #pragma omp task depend(inout: atomP[rowBox*MAXATOMS]) depend(in: atomF[rowBox*MAXATOMS])
             {
                 startTimer(velocityTimer);
+                printf("Velocity for %d - %d\n", rowBox, rowBox + s->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
                     for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
                         s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
@@ -89,6 +90,7 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 #pragma omp task depend(inout: atomR[rowBox*MAXATOMS]) depend(in: atomP[rowBox*MAXATOMS])
             {
                 startTimer(positionTimer);
+                printf("Position for %d - %d\n", rowBox, rowBox + s->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
                     for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
                         int iSpecies = s->atoms->iSpecies[iOff];
@@ -116,6 +118,7 @@ void kineticEnergy(SimFlat* s)
 #pragma omp task depend(out: reductionArray[rowBox]) depend( in: atomP[rowBox*MAXATOMS])
             {
                 startTimer(KETimer);
+                printf("KE for %d - %d\n", rowBox, rowBox + s->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
                     reductionArray[iBox] = 0.;
                     for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
@@ -130,6 +133,7 @@ void kineticEnergy(SimFlat* s)
             }
         }
     }
+#pragma omp taskwait
     ompReduce(reductionArray, s->boxes->nLocalBoxes);
     real_t *eKinetic= &(s->eKinetic);
 #pragma omp task depend( in: reductionArray[0] ) depend( out: eKinetic[0] )

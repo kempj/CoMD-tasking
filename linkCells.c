@@ -412,6 +412,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                              atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
             {   //This task pulls all atoms that belong in cell iBox from multiple cells in the main buffer to cell iBox in the secondary buffer
                 startTimer(redistributeTimer);
+                printf("redist for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     boxesBuffer->nAtoms[iBox] = 0;
                     int firstCopy = 0;
@@ -459,6 +460,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                              atomU[rowBox*MAXATOMS], atomP[rowBox*MAXATOMS])
             {
                 startTimer(redistributeSortTimer);
+                printf("redist sort for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     copySortedCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
                 }

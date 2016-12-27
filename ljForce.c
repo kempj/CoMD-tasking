@@ -235,7 +235,7 @@ int ljForce(SimFlat* s)
     //for (int iBox=0; iBox < s->boxes->nLocalBoxes; iBox++) {
     for(int z=0; z < s->boxes->gridSize[2]; z++) {
         for(int y=0; y < s->boxes->gridSize[1]; y++) {
-            int rowBox = z*s->boxes->gridSize[1]+y*s->boxes->gridSize[0]*s->boxes->gridSize[0];
+            int rowBox = z*s->boxes->gridSize[1]*s->boxes->gridSize[0] + y*s->boxes->gridSize[0];
             for(int nBox=0; nBox < 27; nBox++) {
                 neighbors[nBox] =  s->boxes->nbrBoxes[rowBox][nBox];
             }
@@ -251,8 +251,8 @@ int ljForce(SimFlat* s)
                              atomR[neighbors[24]*MAXATOMS], atomR[neighbors[25]*MAXATOMS], atomR[neighbors[26]*MAXATOMS] )
             {
                 startTimer(computeForceTimer);
+                printf("Force sort for %d - %d\n", rowBox, rowBox + s->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
-                    //printf("for force, iBox = %d\n", iBox);
                     for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
                         zeroReal3(s->atoms->f[ii]);
                         s->atoms->U[ii] = 0.;
@@ -263,6 +263,7 @@ int ljForce(SimFlat* s)
             }
         }
     }
+#pragma omp taskwait
     ompReduce(reductionArray, s->boxes->nLocalBoxes);
 
     real_t *ePotential = &(s->ePotential);
