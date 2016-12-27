@@ -13,13 +13,13 @@ typedef struct RankReduceDataSt
    int rank;
 } RankReduceData;
 
-void ompReduceStride(double *depArray, int arraySize, int depStride);
+void ompReduceStride(real_t *depArray, int arraySize, int depStride);
 
 /// reduce an array into it's first element
-void ompReduce(double *depArray, int arraySize);
+void ompReduce(real_t *depArray, int arraySize);
 
-//void ompReduceRow(double *depArray, int gridSize[3]);
-void ompReduceRowReal(double *depArray, int gridSize[3]);
+void ompReduceRowReal(real_t  *depArray, int gridSize[3]);
+void ompReduceRowR3(real3 *depArray, int gridSize[3]);
 
 
 /// Return total number of processors.
