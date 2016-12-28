@@ -94,7 +94,6 @@ double globalEnergy;
 
 int main(int argc, char** argv)
 {
-    // Prolog
     initParallel(&argc, &argv);
 
 #pragma omp parallel 
@@ -135,19 +134,12 @@ int main(int argc, char** argv)
         profileStartThread(0, loopTimer);
     }
 
-    //timestampBarrier("Starting simulation\n");
-
     // This is the CoMD main loop
     int iStep;
     for(iStep=0; iStep < sim->nSteps; iStep += sim->printRate)
     {
-        //sumAtoms(sim);//combined with KE;
-
         printThings(sim, iStep, getElapsedTime(timestepTimer));
-
-        //startTimer(timestepTimer);
         timestep(sim, sim->printRate, sim->dt);
-        //stopTimer(timestepTimer);
     }
     profileStop(taskCreationTimer);
 #pragma omp taskwait

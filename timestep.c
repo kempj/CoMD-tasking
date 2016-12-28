@@ -35,14 +35,11 @@ extern double globalEnergy;
 /// After nSteps the kinetic energy is computed for diagnostic output.
 double timestep(SimFlat* s, int nSteps, real_t dt)
 {
-    //How do I combine these? 
-    //TODO: Can I use a velocity + position task?
-    //TODO: Can I use a force + velocity task?
     for (int ii=0; ii<nSteps; ++ii) {
         advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
         advancePosition(s, s->boxes->nLocalBoxes, dt);    //in: atomP, out: atomR
-        redistributeAtoms(s);                             //potentially entire atoms moved, but 27->1 deps
-        computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 27->1 deps
+        redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
+        computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
         advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
 
     }
@@ -59,14 +56,12 @@ void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
 {
     real3 *atomP = s->atoms->p;
     real3 *atomF = s->atoms->f;
-    //for (int iBox=0; iBox<nBoxes; iBox++) {
     for(int z=0; z < s->boxes->gridSize[2]; z++) {
         for(int y=0; y < s->boxes->gridSize[1]; y++) {
             int rowBox = z*s->boxes->gridSize[1]*s->boxes->gridSize[0] + y*s->boxes->gridSize[0];
 #pragma omp task depend(inout: atomP[rowBox*MAXATOMS]) depend(in: atomF[rowBox*MAXATOMS])
             {
                 startTimer(velocityTimer);
-                //printf("Velocity for %d - %d\n", rowBox, rowBox + s->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
                     for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
                         s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
@@ -84,7 +79,6 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 {
     real3 *atomP = s->atoms->p;
     real3 *atomR = s->atoms->r;
-    //for (int iBox=0; iBox<nBoxes; iBox++) {
     for(int z=0; z < s->boxes->gridSize[2]; z++) {
         for(int y=0; y < s->boxes->gridSize[1]; y++) {
             int rowBox = z*s->boxes->gridSize[1]*s->boxes->gridSize[0]+y*s->boxes->gridSize[0];
