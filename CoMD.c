@@ -356,8 +356,7 @@ void printThings(SimFlat* s, int iStep, int numIters)//, double elapsedTime)
 {
     if(iStep == 0) {
         fprintf(screenOut, 
-                "#                                                                                         Performance\n" 
-                "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature   (us/atom)     # Atoms\n");
+                "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature   # Atoms\n");
         fflush(screenOut);
     }
 
@@ -368,10 +367,9 @@ void printThings(SimFlat* s, int iStep, int numIters)//, double elapsedTime)
     real_t Temp = (s->eKinetic / s->atoms->nGlobal) / (kB_eV * 1.5);
 
     //double timePerAtom = 1.0e6*elapsedTime/(double)(numIters*s->atoms->nLocal);
-    double timePerAtom = 0;
 
-    fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %10.4f %12d\n",
-            iStep, time, eTotal, eU, eK, Temp, timePerAtom, s->atoms->nGlobal);
+    fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %12d\n",
+            iStep, time, eTotal, eU, eK, Temp, s->atoms->nGlobal);
 
 }
 
