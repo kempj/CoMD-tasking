@@ -80,7 +80,8 @@ static Validate* initValidate(SimFlat* s);
 static void validateResult(const Validate* val, SimFlat *sim);
 
 //static void printThings(SimFlat* s, int iStep, double elapsedTime);
-static void printThings(SimFlat* s, int iStep, int numIters);
+static void printThings(SimFlat* s, int iStep, int numIters, double elapsedTime);
+static void printThingsTask(SimFlat* s, int iStep, int numIters);
 static void printSimulationDataYaml(FILE* file, SimFlat* s);
 static void sanityChecks(Command cmd, double cutoff, double latticeConst, char latticeType[8]);
 
@@ -134,14 +135,14 @@ int main(int argc, char** argv)
         profileStopThread(0, initTimer);
         timestampBarrier("Initialization Finished\n");
         profileStartThread(0, loopTimer);
+        printThings(sim, 0, 1, 0);
         startTimerThread(0, timestepTimer);
     }
 
     // This is the CoMD main loop
-    printThings(sim, 0, 1 );
     for(int iStep=0; iStep < sim->nSteps; iStep += sim->printRate) {
         timestep(sim, sim->printRate, sim->dt);
-        printThings(sim, iStep + sim->printRate, sim->printRate); //getElapsedTime(timestepTimer));
+        printThingsTask(sim, iStep + sim->printRate, sim->printRate);
     }
     profileStop(taskCreationTimer);
 #pragma omp taskwait
@@ -352,12 +353,34 @@ void validateResult(const Validate* val, SimFlat* sim)
 }
 
 
+void printThings(SimFlat* s, int iStep, int numIters, double elapsedTime)
+{
+    if(iStep == 0) {
+        elapsedTime = 0;
+        fprintf(screenOut, 
+                "#                                                                                         Performance\n" 
+                "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature   (us/atom)     # Atoms\n");
+        fflush(screenOut);
+    }
+
+    real_t time = iStep*s->dt;
+    real_t eTotal = (s->ePotential+s->eKinetic) / s->atoms->nGlobal;
+    real_t eK = s->eKinetic / s->atoms->nGlobal;
+    real_t eU = s->ePotential / s->atoms->nGlobal;
+    real_t Temp = (s->eKinetic / s->atoms->nGlobal) / (kB_eV * 1.5);
+
+    double timePerAtom = 1.0e6*elapsedTime/(double)(numIters*s->atoms->nLocal);
+
+    fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %10.4f %12d\n",
+            iStep, time, eTotal, eU, eK, Temp, timePerAtom, s->atoms->nGlobal);
+
+}
 
 /// Prints current time, energy, performance etc to monitor the state of
 /// the running simulation.  Performance per atom is scaled by the
 /// number of local atoms per process this should give consistent timing
 /// assuming reasonable load balance
-void printThings(SimFlat* s, int iStep, int numIters) //double elapsedTime)
+void printThingsTask(SimFlat* s, int iStep, int numIters) //double elapsedTime)
 {
     real_t *eKinetic = &(s->eKinetic);
     real_t *ePotential = &(s->ePotential);
@@ -369,24 +392,7 @@ void printThings(SimFlat* s, int iStep, int numIters) //double elapsedTime)
         startTimer(printTimer);
         double elapsedTime = getElapsedTimeThread(0, timestepTimer);
 
-        if(iStep == 0) {
-            elapsedTime = 0;
-            fprintf(screenOut, 
-                    "#                                                                                         Performance\n" 
-                    "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature   (us/atom)     # Atoms\n");
-            fflush(screenOut);
-        }
-
-        real_t time = iStep*s->dt;
-        real_t eTotal = (s->ePotential+s->eKinetic) / s->atoms->nGlobal;
-        real_t eK = s->eKinetic / s->atoms->nGlobal;
-        real_t eU = s->ePotential / s->atoms->nGlobal;
-        real_t Temp = (s->eKinetic / s->atoms->nGlobal) / (kB_eV * 1.5);
-
-        double timePerAtom = 1.0e6*elapsedTime/(double)(numIters*s->atoms->nLocal);
-
-        fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %10.4f %12d\n",
-                iStep, time, eTotal, eU, eK, Temp, timePerAtom, s->atoms->nGlobal);
+        printThings(s, iStep, numIters, elapsedTime);
 
         stopTimer(printTimer);
         startTimerThread(0, timestepTimer);
