@@ -48,6 +48,8 @@ enum TimerHandle{totalTimer, temp1Timer,
 #define stopTimer(handle)
 #endif
 
+void initPerfTimers(int numThreads);
+
 /// Use profileStart and profileStop only for timers that should *never*
 /// be turned off.  Typically this means they are outside the main
 /// simulation loop.  If the timer is inside the main loop use

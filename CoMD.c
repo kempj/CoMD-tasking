@@ -96,6 +96,13 @@ int main(int argc, char** argv)
 {
     // Prolog
     initParallel(&argc, &argv);
+
+#pragma omp parallel 
+    {
+#pragma omp single
+    {
+    initPerfTimers(omp_get_num_threads());
+
     profileStart(totalTimer);
     initSubsystems();
     timestampBarrier("Starting Initialization\n");
@@ -106,11 +113,6 @@ int main(int argc, char** argv)
     Command cmd = parseCommandLine(argc, argv);
     printCmdYaml(yamlFile, &cmd);
     printCmdYaml(screenOut, &cmd);
-
-#pragma omp parallel 
-    {
-#pragma omp single
-    {
     
     //This is done in a parallel region, because several of the functions it calls create tasks.
     //  If this was done in serial, these functions would need two versions.

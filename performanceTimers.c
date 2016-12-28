@@ -91,19 +91,28 @@ typedef struct TimersSt
    double stdev;       //!< stdev across ranks
 } Timers;
 
-static Timers perfTimer[numberOfTimers];
+Timers **perfTimer;
+
+void initPerfTimers(int numThreads) {
+    perfTimer = calloc(numThreads, sizeof(Timers*));
+    for(int i=0; i<numThreads; i++) {
+        perfTimer[i] = calloc(numberOfTimers, sizeof(Timers));
+    }
+}
 
 void profileStart(const enum TimerHandle handle)
 {
-   perfTimer[handle].start = getTime();
+    int threadNum = omp_get_thread_num();
+    perfTimer[threadNum][handle].start = getTime();
 }
 
 void profileStop(const enum TimerHandle handle)
 {
-   perfTimer[handle].count += 1;
-   uint64_t delta = getTime() - perfTimer[handle].start;
-   perfTimer[handle].total += delta;
-   perfTimer[handle].elapsed += delta;
+    int threadNum = omp_get_thread_num();
+    perfTimer[threadNum][handle].count += 1;
+    uint64_t delta = getTime() - perfTimer[threadNum][handle].start;
+    perfTimer[threadNum][handle].total += delta;
+    perfTimer[threadNum][handle].elapsed += delta;
 }
 
 /// \details
@@ -111,10 +120,11 @@ void profileStop(const enum TimerHandle handle)
 /// and clear for next lap.
 double getElapsedTime(const enum TimerHandle handle)
 {
-   double etime = getTick() * (double)perfTimer[handle].elapsed;
-   perfTimer[handle].elapsed = 0;
+    int threadNum = omp_get_thread_num();
+    double etime = getTick() * (double)perfTimer[threadNum][handle].elapsed;
+    perfTimer[threadNum][handle].elapsed = 0;
 
-   return etime;
+    return etime;
 }
 
 /// \details
@@ -123,7 +133,7 @@ double getElapsedTime(const enum TimerHandle handle)
 /// information over all ranks.
 void printPerformanceResults(int nGlobalAtoms)
 {
-    // Collect timer statistics overall and across ranks
+    // Collect timer statistics overall and across ranks and threads
     timerStats();
 
     if (!printRank())
@@ -131,7 +141,7 @@ void printPerformanceResults(int nGlobalAtoms)
 
     // only print timers with non-zero values.
     double tick = getTick();
-    double loopTime = perfTimer[loopTimer].total*tick;
+    double loopTime = perfTimer[0][loopTimer].total*tick;
     uint64_t taskTimeTotal = 0;
     uint64_t totalTasks = 0;
 
@@ -139,21 +149,21 @@ void printPerformanceResults(int nGlobalAtoms)
     fprintf(screenOut, "        Timer        # Calls    Avg/Call (ms)      Total (s)    %% Loop\n");
     fprintf(screenOut, "___________________________________________________________________\n");
     for (int ii=0; ii<numberOfTimers; ++ii) {
-        double totalTime = perfTimer[ii].total*tick;
-        if (perfTimer[ii].count > 0) {
+        double totalTime = perfTimer[0][ii].total*tick;
+        if (perfTimer[0][ii].count > 0) {
             fprintf(screenOut, "%-16s%12"PRIu64"     %11.4f      %8.4f    %8.2f\n", 
                     timerName[ii],
-                    perfTimer[ii].count,
-                    1000*totalTime/(double)perfTimer[ii].count,
+                    perfTimer[0][ii].count,
+                    1000*totalTime/(double)perfTimer[0][ii].count,
                     totalTime,
                     totalTime/loopTime*100.0);
             if(ii != loopTimer && ii != totalTimer && ii != timestepTimer) {
-                taskTimeTotal += perfTimer[ii].total;
-                totalTasks += perfTimer[ii].count;
+                taskTimeTotal += perfTimer[0][ii].total;
+                totalTasks += perfTimer[0][ii].count;
             }
         }
     }
-    double totalParTime =  perfTimer[totalTimer].total * tick * omp_get_num_threads();
+    double totalParTime =  perfTimer[0][totalTimer].total * tick * omp_get_num_threads();
     printf("total time = %f\n", totalParTime);
     printf("total task time = %f\n", taskTimeTotal*tick);
     printf("overhead = %f\n", totalParTime - (taskTimeTotal*tick));
@@ -164,16 +174,16 @@ void printPerformanceResults(int nGlobalAtoms)
         fprintf(screenOut, "_____________________________________________________________________________\n");
 
         for (int ii = 0; ii < numberOfTimers; ++ii) {
-            if(perfTimer[ii].count > 0)
+            if(perfTimer[0][ii].count > 0)
                 fprintf(screenOut, "%-16s%6d:%10.4f  %6d:%10.4f  %10.4f  %10.4f\n", 
                         timerName[ii], 
-                        perfTimer[ii].minRank, perfTimer[ii].minValue*tick,
-                        perfTimer[ii].maxRank, perfTimer[ii].maxValue*tick,
-                        perfTimer[ii].average*tick, perfTimer[ii].stdev*tick);
+                        perfTimer[0][ii].minRank, perfTimer[0][ii].minValue*tick,
+                        perfTimer[0][ii].maxRank, perfTimer[0][ii].maxValue*tick,
+                        perfTimer[0][ii].average*tick, perfTimer[0][ii].stdev*tick);
         }
         real_t atomsPerTask = nGlobalAtoms/(real_t)getNRanks();
-        real_t atomRate = perfTimer[computeForceTimer].average * tick * 1e6 /
-            (atomsPerTask * perfTimer[computeForceTimer].count);
+        real_t atomRate = perfTimer[0][computeForceTimer].average * tick * 1e6 /
+            (atomsPerTask * perfTimer[0][computeForceTimer].count);
         fprintf(screenOut, "\n---------------------------------------------------\n");
         fprintf(screenOut, " Average atom update rate: %6.2f us/atom/task\n", atomRate);
         fprintf(screenOut, "---------------------------------------------------\n\n");
@@ -186,7 +196,7 @@ void printPerformanceResultsYaml(FILE* file)
       return;
 
    double tick = getTick();
-   double loopTime = perfTimer[loopTimer].total*tick;
+   double loopTime = perfTimer[0][loopTimer].total*tick;
 
    fprintf(file,"\nPerformance Results:\n");
    fprintf(file, "  TotalRanks: %d\n", getNRanks());
@@ -194,12 +204,12 @@ void printPerformanceResultsYaml(FILE* file)
    fprintf(file, "Performance Results For Rank %d:\n", getMyRank());
    for (int ii = 0; ii < numberOfTimers; ii++)
    {
-      if (perfTimer[ii].count > 0)
+      if (perfTimer[0][ii].count > 0)
       {
-         double totalTime = perfTimer[ii].total*tick;
+         double totalTime = perfTimer[0][ii].total*tick;
          fprintf(file, "  Timer: %s\n", timerName[ii]);
-         fprintf(file, "    CallCount: %"PRIu64"\n", perfTimer[ii].count); 
-         fprintf(file, "    AvgPerCall: %8.4f\n", totalTime/(double)perfTimer[ii].count);
+         fprintf(file, "    CallCount: %"PRIu64"\n", perfTimer[0][ii].count); 
+         fprintf(file, "    AvgPerCall: %8.4f\n", totalTime/(double)perfTimer[0][ii].count);
          fprintf(file, "    Total: %8.4f\n", totalTime);
          fprintf(file, "    PercentLoop: %8.2f\n", totalTime/loopTime*100);
       }
@@ -208,15 +218,15 @@ void printPerformanceResultsYaml(FILE* file)
    fprintf(file, "Performance Results Across Ranks:\n");
    for (int ii = 0; ii < numberOfTimers; ii++)
    {
-      if (perfTimer[ii].count > 0)
+      if (perfTimer[0][ii].count > 0)
       {
          fprintf(file, "  Timer: %s\n", timerName[ii]);
-         fprintf(file, "    MinRank: %d\n", perfTimer[ii].minRank);
-         fprintf(file, "    MinTime: %8.4f\n", perfTimer[ii].minValue*tick);     
-         fprintf(file, "    MaxRank: %d\n", perfTimer[ii].maxRank);
-         fprintf(file, "    MaxTime: %8.4f\n", perfTimer[ii].maxValue*tick);
-         fprintf(file, "    AvgTime: %8.4f\n", perfTimer[ii].average*tick);
-         fprintf(file, "    StdevTime: %8.4f\n", perfTimer[ii].stdev*tick);
+         fprintf(file, "    MinRank: %d\n", perfTimer[0][ii].minRank);
+         fprintf(file, "    MinTime: %8.4f\n", perfTimer[0][ii].minValue*tick);     
+         fprintf(file, "    MaxRank: %d\n", perfTimer[0][ii].maxRank);
+         fprintf(file, "    MaxTime: %8.4f\n", perfTimer[0][ii].maxValue*tick);
+         fprintf(file, "    AvgTime: %8.4f\n", perfTimer[0][ii].average*tick);
+         fprintf(file, "    StdevTime: %8.4f\n", perfTimer[0][ii].stdev*tick);
       }
    }
 
@@ -252,50 +262,62 @@ static double getTick(void)
    return seconds_per_cycle; 
 }
 
+void reducePerfTimers() {
+    int numThreads = omp_get_num_threads();
+    for(int i=1; i<numThreads; i++) {
+        for(int timer=0; timer < numberOfTimers; timer++) {
+            perfTimer[0][timer].total   += perfTimer[i][timer].total;
+            perfTimer[0][timer].count   += perfTimer[i][timer].count;
+            perfTimer[0][timer].elapsed += perfTimer[i][timer].elapsed;
+        }
+    }
+}
+
 /// Collect timer statistics across ranks.
 void timerStats(void)
 {
    double sendBuf[numberOfTimers], recvBuf[numberOfTimers];
+   reducePerfTimers();
    
    // Determine average of each timer across ranks
    for (int ii = 0; ii < numberOfTimers; ii++)
-      sendBuf[ii] = (double)perfTimer[ii].total;
+      sendBuf[ii] = (double)perfTimer[0][ii].total;
    addDoubleParallel(sendBuf, recvBuf, numberOfTimers);
 
    for (int ii = 0; ii < numberOfTimers; ii++)
-      perfTimer[ii].average = recvBuf[ii] / (double)getNRanks();
+      perfTimer[0][ii].average = recvBuf[ii] / (double)getNRanks();
 
 
    // Determine min and max across ranks and which rank
    RankReduceData reduceSendBuf[numberOfTimers], reduceRecvBuf[numberOfTimers];
    for (int ii = 0; ii < numberOfTimers; ii++)
    {
-      reduceSendBuf[ii].val = (double)perfTimer[ii].total;
+      reduceSendBuf[ii].val = (double)perfTimer[0][ii].total;
       reduceSendBuf[ii].rank = getMyRank();
    }
    minRankDoubleParallel(reduceSendBuf, reduceRecvBuf, numberOfTimers);   
    for (int ii = 0; ii < numberOfTimers; ii++)
    {
-      perfTimer[ii].minValue = reduceRecvBuf[ii].val;
-      perfTimer[ii].minRank = reduceRecvBuf[ii].rank;
+      perfTimer[0][ii].minValue = reduceRecvBuf[ii].val;
+      perfTimer[0][ii].minRank = reduceRecvBuf[ii].rank;
    }
    maxRankDoubleParallel(reduceSendBuf, reduceRecvBuf, numberOfTimers);   
    for (int ii = 0; ii < numberOfTimers; ii++)
    {
-      perfTimer[ii].maxValue = reduceRecvBuf[ii].val;
-      perfTimer[ii].maxRank = reduceRecvBuf[ii].rank;
+      perfTimer[0][ii].maxValue = reduceRecvBuf[ii].val;
+      perfTimer[0][ii].maxRank = reduceRecvBuf[ii].rank;
    }
    
    // Determine standard deviation
    for (int ii = 0; ii < numberOfTimers; ii++)
    {
-      double temp = (double)perfTimer[ii].total - perfTimer[ii].average;
+      double temp = (double)perfTimer[0][ii].total - perfTimer[0][ii].average;
       sendBuf[ii] = temp * temp;
    }
    addDoubleParallel(sendBuf, recvBuf, numberOfTimers);
    for (int ii = 0; ii < numberOfTimers; ii++)
    {
-      perfTimer[ii].stdev = sqrt(recvBuf[ii] / (double) getNRanks());
+      perfTimer[0][ii].stdev = sqrt(recvBuf[ii] / (double) getNRanks());
    }
 }
 
