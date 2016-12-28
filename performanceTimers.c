@@ -63,6 +63,7 @@ char* timerName[numberOfTimers] = {
    "timestep",
    "  position",
    "  velocity",
+   "  vel+Pos",
    "  redistribute",
    "  redist copy",
    "  force",

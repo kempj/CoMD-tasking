@@ -136,7 +136,6 @@ int main(int argc, char** argv)
         timestampBarrier("Initialization Finished\n");
         profileStartThread(0, loopTimer);
         printThings(sim, 0, 1);
-        //startTimerThread(0, timestepTimer);
     }
 
     // This is the CoMD main loop
@@ -147,7 +146,6 @@ int main(int argc, char** argv)
     profileStop(taskCreationTimer);
 #pragma omp taskwait
     profileStopThread(0, loopTimer);
-    //stopTimerThread(0, timestepTimer);
 
     timestampBarrier("Ending simulation\n");
 
@@ -385,14 +383,11 @@ void printThingsTask(SimFlat* s, int iStep, int numIters)
 
 #pragma omp task depend(in: eKinetic[0], ePotential[0], numAtoms[0])
     {
-        //stopTimerThread(0, timestepTimer);
         startTimer(printTimer);
-        //double elapsedTime = getElapsedTimeThread(0, timestepTimer);
 
         printThings(s, iStep, numIters);//, elapsedTime);
 
         stopTimer(printTimer);
-        //startTimerThread(0, timestepTimer);
     }
 }
 

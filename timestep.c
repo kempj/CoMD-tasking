@@ -10,6 +10,7 @@
 #include "parallel.h"
 #include "performanceTimers.h"
 
+static void advanceVelPos(SimFlat* s, int nBoxes, real_t dtVel, real_t dtPos);
 static void advanceVelocity(SimFlat* s, int nBoxes, real_t dt);
 static void advancePosition(SimFlat* s, int nBoxes, real_t dt);
 
@@ -36,8 +37,10 @@ extern double globalEnergy;
 double timestep(SimFlat* s, int nSteps, real_t dt)
 {
     for (int ii=0; ii<nSteps; ++ii) {
-        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
-        advancePosition(s, s->boxes->nLocalBoxes, dt);    //in: atomP, out: atomR
+        advanceVelPos(s, s->boxes->nLocalBoxes, 0.5*dt, dt);//in: atomF, atomP, out: atomP atomR
+
+        //advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
+        //advancePosition(s, s->boxes->nLocalBoxes, dt);    //in: atomP, out: atomR
         redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
         computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
         advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
@@ -50,6 +53,39 @@ double timestep(SimFlat* s, int nSteps, real_t dt)
 void computeForce(SimFlat* s)
 {
     s->pot->force(s);
+}
+
+void advanceVelPos(SimFlat* s, int nBoxes, real_t dtVel, real_t dtPos)
+{
+    real3 *atomP = s->atoms->p;
+    real3 *atomR = s->atoms->r;
+    real3 *atomF = s->atoms->f;
+    for(int z=0; z < s->boxes->gridSize[2]; z++) {
+        for(int y=0; y < s->boxes->gridSize[1]; y++) {
+            int rowBox = z*s->boxes->gridSize[1]*s->boxes->gridSize[0] + y*s->boxes->gridSize[0];
+#pragma omp task depend(inout: atomP[rowBox*MAXATOMS], atomR[rowBox*MAXATOMS]) \
+                 depend(in: atomF[rowBox*MAXATOMS])
+            {
+                startTimer(velPosTimer);
+                for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
+                    for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                        s->atoms->p[iOff][0] += dtVel*s->atoms->f[iOff][0];
+                        s->atoms->p[iOff][1] += dtVel*s->atoms->f[iOff][1];
+                        s->atoms->p[iOff][2] += dtVel*s->atoms->f[iOff][2];
+                    }
+
+                    for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                        int iSpecies = s->atoms->iSpecies[iOff];
+                        real_t invMass = 1.0/s->species[iSpecies].mass;
+                        s->atoms->r[iOff][0] += dtPos*s->atoms->p[iOff][0]*invMass;
+                        s->atoms->r[iOff][1] += dtPos*s->atoms->p[iOff][1]*invMass;
+                        s->atoms->r[iOff][2] += dtPos*s->atoms->p[iOff][2]*invMass;
+                    }
+                }
+                stopTimer(velPosTimer);
+            }
+        }
+    }
 }
 
 void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
