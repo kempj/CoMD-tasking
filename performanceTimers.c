@@ -50,13 +50,15 @@ static void timerStats(void);
 /// Leading spaces can be specified to show a hierarchy of timers.
 char* timerName[numberOfTimers] = {
    "total",
-   "temperature",
+   "Task Creation",
+   "init" ,
+   "  temp1",
    "  vcm1",
    "  vcm2", 
    "  vcm3", 
    "  vcm4", 
-   "temp2",
-   "random init",
+   "  temp2",
+   "  random init",
    "loop",
    "timestep",
    "  position",
@@ -100,19 +102,30 @@ void initPerfTimers(int numThreads) {
     }
 }
 
+
+void profileStartThread(int threadNum, const enum TimerHandle handle)
+{
+    perfTimer[threadNum][handle].start = getTime();
+}
+
 void profileStart(const enum TimerHandle handle)
 {
     int threadNum = omp_get_thread_num();
-    perfTimer[threadNum][handle].start = getTime();
+    profileStartThread(threadNum, handle);
+}
+
+void profileStopThread(int threadNum, const enum TimerHandle handle)
+{
+    perfTimer[threadNum][handle].count += 1;
+    uint64_t delta = getTime() - perfTimer[threadNum][handle].start;
+    perfTimer[threadNum][handle].total += delta;
+    perfTimer[threadNum][handle].elapsed += delta;
 }
 
 void profileStop(const enum TimerHandle handle)
 {
     int threadNum = omp_get_thread_num();
-    perfTimer[threadNum][handle].count += 1;
-    uint64_t delta = getTime() - perfTimer[threadNum][handle].start;
-    perfTimer[threadNum][handle].total += delta;
-    perfTimer[threadNum][handle].elapsed += delta;
+    profileStopThread(threadNum, handle);
 }
 
 /// \details
@@ -141,22 +154,28 @@ void printPerformanceResults(int nGlobalAtoms)
 
     // only print timers with non-zero values.
     double tick = getTick();
-    double loopTime = perfTimer[0][loopTimer].total*tick;
+    double totalTime = perfTimer[0][totalTimer].total*tick;
     uint64_t taskTimeTotal = 0;
     uint64_t totalTasks = 0;
 
     fprintf(screenOut, "\n\nTimings for Rank %d\n", getMyRank());
-    fprintf(screenOut, "        Timer        # Calls    Avg/Call (ms)      Total (s)    %% Loop\n");
+    fprintf(screenOut, "        Timer        # Calls    Avg/Call (ms)      Total (s)    %% Total\n");
     fprintf(screenOut, "___________________________________________________________________\n");
     for (int ii=0; ii<numberOfTimers; ++ii) {
-        double totalTime = perfTimer[0][ii].total*tick;
+        double counterTime = perfTimer[0][ii].total*tick;
+        double percentTotal = counterTime/totalTime*100.0;
+        //double percentTotal = counterTime/(totalTime * omp_get_num_threads()) * 100.0;
         if (perfTimer[0][ii].count > 0) {
+            if(ii != totalTimer && ii != loopTimer && ii != initTimer) {
+                percentTotal = counterTime/(totalTime * omp_get_num_threads()) * 100.0;
+            }
             fprintf(screenOut, "%-16s%12"PRIu64"     %11.4f      %8.4f    %8.2f\n", 
                     timerName[ii],
                     perfTimer[0][ii].count,
-                    1000*totalTime/(double)perfTimer[0][ii].count,
-                    totalTime,
-                    totalTime/loopTime*100.0);
+                    1000*counterTime/(double)perfTimer[0][ii].count,
+                    counterTime,
+                    percentTotal);
+                    //counterTime/loopTime*100.0);
             if(ii != loopTimer && ii != totalTimer && ii != timestepTimer) {
                 taskTimeTotal += perfTimer[0][ii].total;
                 totalTasks += perfTimer[0][ii].count;

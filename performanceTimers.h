@@ -6,8 +6,8 @@
 #include <stdio.h>
 
 /// Timer handles
-enum TimerHandle{totalTimer, temp1Timer, 
-                 vcm1Timer, vcm2Timer, vcm3Timer, vcm4Timer,
+enum TimerHandle{totalTimer, taskCreationTimer, initTimer, 
+                 temp1Timer, vcm1Timer, vcm2Timer, vcm3Timer, vcm4Timer,
                  temp2Timer, displacementTimer,
                  loopTimer, timestepTimer,
                  positionTimer, velocityTimer,
@@ -56,6 +56,9 @@ void initPerfTimers(int numThreads);
 /// startTimer and stopTimer instead.
 void profileStart(const enum TimerHandle handle);
 void profileStop(const enum TimerHandle handle);
+void profileStartThread(int threadNum, const enum TimerHandle handle);
+void profileStopThread(int threadNum, const enum TimerHandle handle);
+
 
 /// Use to get elapsed time (lap timer).
 double getElapsedTime(const enum TimerHandle handle);

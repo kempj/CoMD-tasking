@@ -104,6 +104,8 @@ int main(int argc, char** argv)
     initPerfTimers(omp_get_num_threads());
 
     profileStart(totalTimer);
+    profileStart(taskCreationTimer);
+    profileStartThread(0, initTimer);
     initSubsystems();
     timestampBarrier("Starting Initialization\n");
 
@@ -117,37 +119,40 @@ int main(int argc, char** argv)
     //This is done in a parallel region, because several of the functions it calls create tasks.
     //  If this was done in serial, these functions would need two versions.
     sim = initSimulation(cmd);//out: P, R, U, F, KE
-    printSimulationDataYaml(yamlFile, sim);
-    printSimulationDataYaml(screenOut, sim);
 
-#pragma omp taskwait
-    //To remove this taskwait, the print statements below need to be put in a task.
-    Validate* validate = initValidate(sim);
-    timestampBarrier("Initialization Finished\n");
+//#pragma omp taskwait
+    Validate* validate;
+    real_t *eKinetic = &(sim->eKinetic);
+    real_t *ePotential = &(sim->ePotential);
 
-    timestampBarrier("Starting simulation\n");
+#pragma omp task shared(validate)  depend(in: eKinetic[0], ePotential[0])
+    {
+        printSimulationDataYaml(yamlFile, sim);
+        printSimulationDataYaml(screenOut, sim);
+
+        validate = initValidate(sim);
+        profileStopThread(0, initTimer);
+        timestampBarrier("Initialization Finished\n");
+        profileStartThread(0, loopTimer);
+    }
+
+    //timestampBarrier("Starting simulation\n");
 
     // This is the CoMD main loop
-    const int nSteps = sim->nSteps;
-    const int printRate = sim->printRate;
-    int iStep = 0;
-    profileStart(loopTimer);
-    for (; iStep<nSteps; )
+    int iStep;
+    for(iStep=0; iStep < sim->nSteps; iStep += sim->printRate)
     {
-        //startTimer(commReduceTimer);
         sumAtoms(sim);//TODO: This is a reduce of all local atom counts Can I combine this with KE?
-        //stopTimer(commReduceTimer);
 
         printThings(sim, iStep, getElapsedTime(timestepTimer));
 
-        startTimer(timestepTimer);
-        timestep(sim, printRate, sim->dt);
-        stopTimer(timestepTimer);
-        iStep += printRate;
-
+        //startTimer(timestepTimer);
+        timestep(sim, sim->printRate, sim->dt);
+        //stopTimer(timestepTimer);
     }
+    profileStop(taskCreationTimer);
 #pragma omp taskwait
-    profileStop(loopTimer);
+    profileStopThread(0, loopTimer);
 
     sumAtoms(sim);
     printThings(sim, iStep, getElapsedTime(timestepTimer));
