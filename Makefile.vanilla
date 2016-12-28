@@ -18,6 +18,7 @@ DO_MPI = OFF
 CC = icc
 CFLAGS = -std=c99 -fopenmp
 OPTFLAGS = -g -O3
+#OPTFLAGS = -g -O3 -xMIC-AVX512
 INCLUDES = 
 C_LIB = -lm
 
