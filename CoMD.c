@@ -364,7 +364,7 @@ void printThings(SimFlat* s, int iStep, int numIters) //double elapsedTime)
     real_t *ePotential = &(s->ePotential);
     int *numAtoms = &(s->atoms->nLocal);
 
-#pragma omp task depend(in: *eKinetic, *ePotential, *numAtoms)
+#pragma omp task firstprivate(iStep, numIters) depend(in: *eKinetic, *ePotential, *numAtoms)
     {
         stopTimerThread(0, timestepTimer);
         startTimer(printTimer);
