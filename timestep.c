@@ -14,6 +14,7 @@ static void advanceVelocity(SimFlat* s, int nBoxes, real_t dt);
 static void advancePosition(SimFlat* s, int nBoxes, real_t dt);
 
 extern double *reductionArray;
+extern int *reductionArrayInt;
 extern double globalEnergy;
 
 /// Advance the simulation time to t+dt using a leap frog method
@@ -111,14 +112,14 @@ void advancePosition(SimFlat* s, int nBoxes, real_t dt)
 void kineticEnergy(SimFlat* s)
 {
     real3  *atomP = s->atoms->p;
-    //for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
+    int *nAtoms = s->boxes->nAtoms;
     for(int z=0; z < s->boxes->gridSize[2]; z++) {
         for(int y=0; y < s->boxes->gridSize[1]; y++) {
             int rowBox = z*s->boxes->gridSize[1]*s->boxes->gridSize[0]+y*s->boxes->gridSize[0];
-#pragma omp task depend(out: reductionArray[rowBox]) depend( in: atomP[rowBox*MAXATOMS])
+#pragma omp task depend(out: reductionArray[rowBox], reductionArrayInt[rowBox]) \
+                 depend( in: atomP[rowBox*MAXATOMS], nAtoms[rowBox])
             {
                 startTimer(KETimer);
-                //printf("KE for %d - %d\n", rowBox, rowBox + s->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
                     reductionArray[iBox] = 0.;
                     for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
@@ -128,19 +129,24 @@ void kineticEnergy(SimFlat* s)
                                                   s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
                                                   s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
                     }
+                    reductionArrayInt[iBox] = s->boxes->nAtoms[iBox];
                 }
                 stopTimer(KETimer);
             }
         }
     }
-    //ompReduce(reductionArray, s->boxes->nLocalBoxes);
     ompReduceRowReal(reductionArray, s->boxes->gridSize);
+    ompReduceRowInt(reductionArrayInt, s->boxes->gridSize);
+
     real_t *eKinetic= &(s->eKinetic);
-#pragma omp task depend( in: reductionArray[0] ) depend( out: eKinetic[0] )
+    int *atomTotal = &(s->atoms->nLocal);
+#pragma omp task depend( in: reductionArray[0] , reductionArrayInt[0]) \
+                 depend( out: *eKinetic , *atomTotal)
     {
         startTimer(KEReduceTimer);
         s->eKinetic = reductionArray[0];
         reductionArray[0] = 0;
+        s->atoms->nLocal = reductionArrayInt[0];
         stopTimer(KEReduceTimer);
     }
 

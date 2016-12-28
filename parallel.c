@@ -21,6 +21,62 @@ static int myRank = 0;
 static int nRanks = 1;
 
 
+
+//-------- Int Reductions --------------
+
+void reduceInt(int *depArray, int arraySize, int innerStride)
+{
+    int cellsPerTask = 16 * innerStride;
+    while( innerStride < arraySize ) { 
+        for(int iBox=0; iBox < arraySize; iBox +=cellsPerTask) {
+#pragma omp task depend(inout: depArray[iBox]) \
+                 depend(in   : depArray[iBox+   innerStride],\
+                               depArray[iBox+2 *innerStride], depArray[iBox+3 *innerStride],\
+                               depArray[iBox+4 *innerStride], depArray[iBox+5 *innerStride],\
+                               depArray[iBox+6 *innerStride], depArray[iBox+7 *innerStride],\
+                               depArray[iBox+8 *innerStride], depArray[iBox+9 *innerStride],\
+                               depArray[iBox+10*innerStride], depArray[iBox+11*innerStride],\
+                               depArray[iBox+12*innerStride], depArray[iBox+13*innerStride],\
+                               depArray[iBox+14*innerStride], depArray[iBox+15*innerStride])
+            {
+                startTimer(ompReduceTimer);
+                for(int i=iBox+innerStride; i<iBox+cellsPerTask && i<arraySize; i+=innerStride) {
+                    depArray[iBox] += depArray[i];
+                    depArray[i] = 0.;
+                }
+                stopTimer(ompReduceTimer);
+            }
+        }
+        innerStride = cellsPerTask;
+        cellsPerTask *= 16;
+    }
+}
+
+void reduceRowInt(int *depArrayRow, int rowSize) {
+    for(int i=1; i<rowSize; i++) {
+        depArrayRow[0] += depArrayRow[i];
+        depArrayRow[i] = 0;
+    }
+}
+
+void ompReduceRowInt(int *depArray, int gridSize[3])
+{
+    for(int z=0; z < gridSize[2]; z++) {
+        for(int y=0; y < gridSize[1]; y++) {
+            int rowBox = z*gridSize[1]*gridSize[0] + y*gridSize[0];
+#pragma omp task depend(inout: depArray[rowBox])
+            {
+                startTimer(ompReduceTimer);
+                reduceRowInt(&depArray[rowBox], gridSize[0]);
+                stopTimer(ompReduceTimer);
+            }
+        }
+    }
+    reduceInt(depArray, gridSize[0]*gridSize[1]*gridSize[2], gridSize[0]);
+}
+
+//-------- R3 Reductions --------------
+
 void reduceR3(real3 *depArray, int arraySize, int innerStride)
 {
     int cellsPerTask = 16 * innerStride;
@@ -76,7 +132,7 @@ void ompReduceRowR3(real3 *depArray, int gridSize[3])
     reduceR3(depArray, gridSize[0]*gridSize[1]*gridSize[2], gridSize[0]);
 }
 
-//-----------------
+//-------- Real Reductions --------------
 
 void reduceReal(real_t *depArray, int arraySize, int innerStride)
 {

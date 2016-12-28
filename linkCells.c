@@ -385,7 +385,6 @@ int nextHighestAtom(Atoms *sourceAtoms, int atomOffset, int nAtoms, int maxGID, 
             targetGID = sourceAtoms->gid[atomOffset+i];
         }
     }
-    //printf("next highest GID (after %d) is %d in position %d\n", minGID, targetGID, targetPosition);
     return targetPosition;
 }
 
@@ -405,15 +404,10 @@ void copySortedCell(LinkCell *sourceBoxes, LinkCell *destBoxes, Atoms *sourceAto
         }
     }
 
-    //printf("\ncopying cell %d with GIDs from %d to %d\n\n", iBox, lowestGID, highestGID);
-
     int targetAtom = nextHighestAtom(sourceAtoms, atomOffset, numAtoms, highestGID, lowestGID - 1);
-    //printf("\n");
     for(int atomNum = 0; atomNum < numAtoms; atomNum++) {
-        //printf("writing Atom %d (gid = %d) to position %d\n", atomNum, sourceAtoms->gid[atomOffset + atomNum], targetAtom);
         copyAtom(sourceAtoms, destAtoms, atomNum, iBox, targetAtom, iBox);
         targetAtom = nextHighestAtom(sourceAtoms, atomOffset, numAtoms, highestGID, sourceAtoms->gid[atomOffset + targetAtom]);
-        
     }
     destBoxes->nAtoms[iBox] = sourceBoxes->nAtoms[iBox];
 }
@@ -477,16 +471,16 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
     //TODO: set up some sort of pointer swap so the tasks that just copy back aren't necessary.
 
     //This loop copies the cells from the buffer back to the main buffer.
-    //for(int iBox=0; iBox<boxes->nLocalBoxes; ++iBox) {
     for(int z=0; z < sim->boxes->gridSize[2]; z++) {
         for(int y=0; y < sim->boxes->gridSize[1]; y++) {
             int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
+            int *nAtoms = &sim->boxes->nAtoms[rowBox];
 #pragma omp task depend(in : atomsBufferR[rowBox*MAXATOMS]) \
-                 depend(out: atomF[rowBox*MAXATOMS], atomR[rowBox*MAXATOMS],\
-                             atomU[rowBox*MAXATOMS], atomP[rowBox*MAXATOMS])
+                 depend(out: nAtoms, \
+                             atomF[rowBox*MAXATOMS], atomR[rowBox*MAXATOMS],\
+                             atomU[rowBox*MAXATOMS], atomP[rowBox*MAXATOMS] )
             {
                 startTimer(redistributeSortTimer);
-                //printf("redist sort for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     copySortedCell(boxesBuffer, boxes, atomsBuffer, atoms, iBox);
                 }

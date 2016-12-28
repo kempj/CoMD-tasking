@@ -136,9 +136,7 @@ void setVcm()
             }
         }
     }
-    //ompReduceStride(r3ReductionArray[0], sim->boxes->nLocalBoxes, 3);
     ompReduceRowR3(r3ReductionArray, sim->boxes->gridSize);
-    //ompReduce(reductionArray, sim->boxes->nLocalBoxes);
     ompReduceRowReal(reductionArray, sim->boxes->gridSize);
 
 #pragma omp task depend(inout: r3ReductionArray[0], reductionArray[0]) depend( out: vInit[0])

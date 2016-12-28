@@ -79,7 +79,6 @@ static SpeciesData* initSpecies(BasePotential* pot);
 static Validate* initValidate(SimFlat* s);
 static void validateResult(const Validate* val, SimFlat *sim);
 
-static void sumAtoms(SimFlat* s);
 static void printThings(SimFlat* s, int iStep, double elapsedTime);
 static void printSimulationDataYaml(FILE* file, SimFlat* s);
 static void sanityChecks(Command cmd, double cutoff, double latticeConst, char latticeType[8]);
@@ -89,6 +88,7 @@ SimFlat* sim;
 
 real3 *r3ReductionArray;
 double *reductionArray;
+int *reductionArrayInt;
 double globalEnergy;
 
 
@@ -120,12 +120,11 @@ int main(int argc, char** argv)
     //  If this was done in serial, these functions would need two versions.
     sim = initSimulation(cmd);//out: P, R, U, F, KE
 
-//#pragma omp taskwait
     Validate* validate;
     real_t *eKinetic = &(sim->eKinetic);
     real_t *ePotential = &(sim->ePotential);
 
-#pragma omp task shared(validate)  depend(in: eKinetic[0], ePotential[0])
+#pragma omp task shared(validate)  depend(in: *eKinetic, *ePotential)
     {
         printSimulationDataYaml(yamlFile, sim);
         printSimulationDataYaml(screenOut, sim);
@@ -142,7 +141,7 @@ int main(int argc, char** argv)
     int iStep;
     for(iStep=0; iStep < sim->nSteps; iStep += sim->printRate)
     {
-        sumAtoms(sim);//TODO: This is a reduce of all local atom counts Can I combine this with KE?
+        //sumAtoms(sim);//combined with KE;
 
         printThings(sim, iStep, getElapsedTime(timestepTimer));
 
@@ -154,7 +153,7 @@ int main(int argc, char** argv)
 #pragma omp taskwait
     profileStopThread(0, loopTimer);
 
-    sumAtoms(sim);
+    //sumAtoms(sim);
     printThings(sim, iStep, getElapsedTime(timestepTimer));
     timestampBarrier("Ending simulation\n");
 
@@ -226,24 +225,15 @@ SimFlat* initSimulation(Command cmd)
 
     createFccLattice(cmd.nx, cmd.ny, cmd.nz, latticeConstant, sim);
 
-    reductionArray = comdCalloc(sim->boxes->nTotalBoxes + 16, sizeof(double));
-    r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes + 16, sizeof(real3));
+    reductionArray = comdCalloc(sim->boxes->nTotalBoxes , sizeof(double));
+    reductionArrayInt  = comdCalloc(sim->boxes->nTotalBoxes , sizeof(int));
+    r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes , sizeof(real3));
 
     setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
     randomDisplacements(cmd.initialDelta);//inout atomR, in atomP
 
     //sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
 
-    //printf("local boxes = %d (%d, %d, %d)\n", sim->boxes->nLocalBoxes, sim->boxes->gridSize[0], sim->boxes->gridSize[1], sim->boxes->gridSize[2]);
-    //for(int z=0; z < sim->boxes->gridSize[2]; z++) {
-    //    for(int y=0; y < sim->boxes->gridSize[1]; y++) {
-    //        for(int x=0; x < sim->boxes->gridSize[0]; x++) {
-    //            //printf("iBox = %d, (%d, %d, %d) ", z*sim->boxes->gridSize[1] + y*sim->boxes->gridSize[0] + x, z, y, x);
-    //            //printf(" = %d + %d + %d \n", z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0], y*sim->boxes->gridSize[0], x);
-    //        }
-    //        //printf("\n");
-    //    }
-    //}
     startTimer(redistributeTimer);
     redistributeAtoms(sim);//inout: atomP, atomR
     stopTimer(redistributeTimer);
@@ -323,7 +313,7 @@ SpeciesData* initSpecies(BasePotential* pot)
 
 Validate* initValidate(SimFlat* sim)
 {
-    sumAtoms(sim);
+    //sumAtoms(sim);
     Validate* val = comdMalloc(sizeof(Validate));
     val->eTot0 = (sim->ePotential + sim->eKinetic) / sim->atoms->nGlobal;
     val->nAtoms0 = sim->atoms->nGlobal;
@@ -368,17 +358,7 @@ void validateResult(const Validate* val, SimFlat* sim)
     }
 }
 
-void sumAtoms(SimFlat* s)
-{
-    // sum atoms across all processers
-    s->atoms->nLocal = 0;
-    for (int i = 0; i < s->boxes->nLocalBoxes; i++)
-    {
-        s->atoms->nLocal += s->boxes->nAtoms[i];
-    }
 
-    addIntParallel(&s->atoms->nLocal, &s->atoms->nGlobal, 1);
-}
 
 /// Prints current time, energy, performance etc to monitor the state of
 /// the running simulation.  Performance per atom is scaled by the
@@ -386,10 +366,11 @@ void sumAtoms(SimFlat* s)
 /// assuming reasonable load balance
 void printThings(SimFlat* s, int iStep, double elapsedTime)
 {
-    real_t *eKinetic = &(sim->eKinetic);
+    real_t *eKinetic = &(s->eKinetic);
     real_t *ePotential = &(s->ePotential);
+    int *numAtoms = &(s->atoms->nLocal);
 
-#pragma omp task depend(in: eKinetic[0], ePotential[0])
+#pragma omp task depend(in: *eKinetic, *ePotential, *numAtoms)
     {
         startTimer(printTimer);
         // keep track previous value of iStep so we can calculate number of steps.

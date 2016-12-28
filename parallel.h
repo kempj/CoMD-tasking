@@ -16,8 +16,7 @@ typedef struct RankReduceDataSt
 void ompReduceStride(real_t *depArray, int arraySize, int depStride);
 
 /// reduce an array into it's first element
-void ompReduce(real_t *depArray, int arraySize);
-
+void ompReduceRowInt(int *depArray, int gridSize[3]);
 void ompReduceRowReal(real_t  *depArray, int gridSize[3]);
 void ompReduceRowR3(real3 *depArray, int gridSize[3]);
 
