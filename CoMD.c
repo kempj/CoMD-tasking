@@ -356,7 +356,7 @@ void printThings(SimFlat* s, int iStep, int numIters)//, double elapsedTime)
 {
     if(iStep == 0) {
         fprintf(screenOut, 
-                "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature    # Atoms\n");
+                "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature       # Atoms\n");
         fflush(screenOut);
     }
 
