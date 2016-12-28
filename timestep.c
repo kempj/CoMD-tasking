@@ -135,7 +135,7 @@ void kineticEnergy(SimFlat* s)
     real_t *eKinetic= &(s->eKinetic);
     int *atomTotal = &(s->atoms->nLocal);
 #pragma omp task depend( in: reductionArray[0] , reductionArrayInt[0]) \
-                 depend( out: *eKinetic , *atomTotal)
+                 depend( out: eKinetic[0] , atomTotal[0])
     {
         startTimer(KEReduceTimer);
         s->eKinetic = reductionArray[0];

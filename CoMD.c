@@ -124,7 +124,7 @@ int main(int argc, char** argv)
     real_t *eKinetic = &(sim->eKinetic);
     real_t *ePotential = &(sim->ePotential);
 
-#pragma omp task shared(validate)  depend(in: *eKinetic, *ePotential)
+#pragma omp task shared(validate)  depend(in: eKinetic[0], ePotential[0])
     {
         printSimulationDataYaml(yamlFile, sim);
         printSimulationDataYaml(screenOut, sim);
@@ -147,7 +147,6 @@ int main(int argc, char** argv)
     profileStopThread(0, loopTimer);
     stopTimerThread(0, timestepTimer);
 
-    //sumAtoms(sim);
     //printThings(sim, iStep, sim->printRate );//getElapsedTime(timestepTimer));
     timestampBarrier("Ending simulation\n");
 
@@ -307,7 +306,6 @@ SpeciesData* initSpecies(BasePotential* pot)
 
 Validate* initValidate(SimFlat* sim)
 {
-    //sumAtoms(sim);
     Validate* val = comdMalloc(sizeof(Validate));
     val->eTot0 = (sim->ePotential + sim->eKinetic) / sim->atoms->nGlobal;
     val->nAtoms0 = sim->atoms->nGlobal;
@@ -364,7 +362,7 @@ void printThings(SimFlat* s, int iStep, int numIters) //double elapsedTime)
     real_t *ePotential = &(s->ePotential);
     int *numAtoms = &(s->atoms->nLocal);
 
-#pragma omp task firstprivate(iStep, numIters) depend(in: *eKinetic, *ePotential, *numAtoms)
+#pragma omp task depend(in: eKinetic[0], ePotential[0], numAtoms[0])
     {
         stopTimerThread(0, timestepTimer);
         startTimer(printTimer);
