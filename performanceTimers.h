@@ -33,6 +33,16 @@ enum TimerHandle{totalTimer, taskCreationTimer, initTimer,
 ///     ...
 ///
 #ifndef NTIMING
+#define startTimerThread(threadNum, handle)    \
+   do                         \
+   {                          \
+      profileStartThread(threadNum, handle);   \
+   } while(0)
+#define stopTimerThread(threadNum, handle)     \
+   do                         \
+   {                          \
+      profileStopThread(threadNum, handle);    \
+   } while(0)
 #define startTimer(handle)    \
    do                         \
    {                          \
@@ -44,6 +54,8 @@ enum TimerHandle{totalTimer, taskCreationTimer, initTimer,
       profileStop(handle);    \
    } while(0)
 #else
+#define startTimerThread( threadNum, handle)
+#define stopTimerThread( threadNum, handle)
 #define startTimer(handle)
 #define stopTimer(handle)
 #endif
@@ -61,6 +73,7 @@ void profileStopThread(int threadNum, const enum TimerHandle handle);
 
 
 /// Use to get elapsed time (lap timer).
+double getElapsedTimeThread(int threadNum, const enum TimerHandle handle);
 double getElapsedTime(const enum TimerHandle handle);
 
 /// Print timing results.

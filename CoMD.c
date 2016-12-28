@@ -79,7 +79,8 @@ static SpeciesData* initSpecies(BasePotential* pot);
 static Validate* initValidate(SimFlat* s);
 static void validateResult(const Validate* val, SimFlat *sim);
 
-static void printThings(SimFlat* s, int iStep, double elapsedTime);
+//static void printThings(SimFlat* s, int iStep, double elapsedTime);
+static void printThings(SimFlat* s, int iStep, int numIters);
 static void printSimulationDataYaml(FILE* file, SimFlat* s);
 static void sanityChecks(Command cmd, double cutoff, double latticeConst, char latticeType[8]);
 
@@ -132,21 +133,22 @@ int main(int argc, char** argv)
         profileStopThread(0, initTimer);
         timestampBarrier("Initialization Finished\n");
         profileStartThread(0, loopTimer);
+        startTimerThread(0, timestepTimer);
     }
 
     // This is the CoMD main loop
-    int iStep;
-    for(iStep=0; iStep < sim->nSteps; iStep += sim->printRate)
-    {
-        printThings(sim, iStep, getElapsedTime(timestepTimer));
+    printThings(sim, 0, 1 );
+    for(int iStep=0; iStep < sim->nSteps; iStep += sim->printRate) {
         timestep(sim, sim->printRate, sim->dt);
+        printThings(sim, iStep + sim->printRate, sim->printRate); //getElapsedTime(timestepTimer));
     }
     profileStop(taskCreationTimer);
 #pragma omp taskwait
     profileStopThread(0, loopTimer);
+    stopTimerThread(0, timestepTimer);
 
     //sumAtoms(sim);
-    printThings(sim, iStep, getElapsedTime(timestepTimer));
+    //printThings(sim, iStep, sim->printRate );//getElapsedTime(timestepTimer));
     timestampBarrier("Ending simulation\n");
 
     // Epilog
@@ -356,7 +358,7 @@ void validateResult(const Validate* val, SimFlat* sim)
 /// the running simulation.  Performance per atom is scaled by the
 /// number of local atoms per process this should give consistent timing
 /// assuming reasonable load balance
-void printThings(SimFlat* s, int iStep, double elapsedTime)
+void printThings(SimFlat* s, int iStep, int numIters) //double elapsedTime)
 {
     real_t *eKinetic = &(s->eKinetic);
     real_t *ePotential = &(s->ePotential);
@@ -364,16 +366,12 @@ void printThings(SimFlat* s, int iStep, double elapsedTime)
 
 #pragma omp task depend(in: *eKinetic, *ePotential, *numAtoms)
     {
+        stopTimerThread(0, timestepTimer);
         startTimer(printTimer);
-        // keep track previous value of iStep so we can calculate number of steps.
-        static int iStepPrev = -1; 
-        static int firstCall = 1;
+        double elapsedTime = getElapsedTimeThread(0, timestepTimer);
 
-        int nEval = iStep - iStepPrev; // gives nEval = 1 for zeroth step.
-        iStepPrev = iStep;
-
-        if (firstCall) {
-            firstCall = 0;
+        if(iStep == 0) {
+            elapsedTime = 0;
             fprintf(screenOut, 
                     "#                                                                                         Performance\n" 
                     "#  Loop   Time(fs)       Total Energy   Potential Energy     Kinetic Energy  Temperature   (us/atom)     # Atoms\n");
@@ -386,11 +384,12 @@ void printThings(SimFlat* s, int iStep, double elapsedTime)
         real_t eU = s->ePotential / s->atoms->nGlobal;
         real_t Temp = (s->eKinetic / s->atoms->nGlobal) / (kB_eV * 1.5);
 
-        double timePerAtom = 1.0e6*elapsedTime/(double)(nEval*s->atoms->nLocal);
+        double timePerAtom = 1.0e6*elapsedTime/(double)(numIters*s->atoms->nLocal);
 
         fprintf(screenOut, " %6d %10.2f %18.12f %18.12f %18.12f %12.4f %10.4f %12d\n",
                 iStep, time, eTotal, eU, eK, Temp, timePerAtom, s->atoms->nGlobal);
         stopTimer(printTimer);
+        startTimerThread(0, timestepTimer);
     }
 }
 

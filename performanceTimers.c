@@ -131,13 +131,18 @@ void profileStop(const enum TimerHandle handle)
 /// \details
 /// Return elapsed time (in seconds) since last call with this handle
 /// and clear for next lap.
+
+double getElapsedTimeThread(int threadNum, const enum TimerHandle handle)
+{
+    double etime = getTick() * (double)perfTimer[threadNum][handle].elapsed;
+    perfTimer[threadNum][handle].elapsed = 0;
+    return etime;
+}
+
 double getElapsedTime(const enum TimerHandle handle)
 {
     int threadNum = omp_get_thread_num();
-    double etime = getTick() * (double)perfTimer[threadNum][handle].elapsed;
-    perfTimer[threadNum][handle].elapsed = 0;
-
-    return etime;
+    return getElapsedTimeThread(threadNum, handle);
 }
 
 /// \details

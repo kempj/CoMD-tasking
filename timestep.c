@@ -43,7 +43,7 @@ double timestep(SimFlat* s, int nSteps, real_t dt)
         advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
 
     }
-    kineticEnergy(s);//reduction over atomP
+    kineticEnergy(s);//atomP -> KE and nAtoms -> nLocal
     return s->ePotential;
 }
 
