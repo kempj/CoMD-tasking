@@ -36,22 +36,29 @@ extern double globalEnergy;
 /// After nSteps the kinetic energy is computed for diagnostic output.
 double timestep(SimFlat* s, int nSteps, real_t dt)
 {
-    advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
+    advanceVelPos(s, s->boxes->nLocalBoxes, 0.5*dt, dt);//in: atomF, atomP, out: atomP atomR
     for (int ii=0; ii<nSteps-1; ++ii) {
-        //advanceVelPos(s, s->boxes->nLocalBoxes, 0.5*dt, dt);//in: atomF, atomP, out: atomP atomR
-        advancePosition(s, s->boxes->nLocalBoxes, dt);//in: atomF, atomP, out: atomP
+        //advancePosition(s, s->boxes->nLocalBoxes, dt);//in: atomF, atomP, out: atomP
         redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
         computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
-        //advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
-        advanceVelocity(s, s->boxes->nLocalBoxes, dt);//in: atomF, atomP, out: atomP
+        //advanceVelocity(s, s->boxes->nLocalBoxes, dt);//in: atomF, atomP, out: atomP
+        advanceVelPos(s, s->boxes->nLocalBoxes, dt, dt);//in: atomF, atomP, out: atomP atomR
     }
-    advancePosition(s, s->boxes->nLocalBoxes, dt);//in: atomF, atomP, out: atomP
     redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
     computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
     advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
     kineticEnergy(s);//atomP -> KE and nAtoms -> nLocal
     return s->ePotential;
 }
+//    for (int ii=0; ii<nSteps-1; ++ii) {
+//        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
+//        advancePosition(s, s->boxes->nLocalBoxes, dt);//in: atomF, atomP, out: atomP
+//        redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
+//        computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
+//        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
+//    }
+//    kineticEnergy(s);//atomP -> KE and nAtoms -> nLocal
+
 
 void computeForce(SimFlat* s)
 {
