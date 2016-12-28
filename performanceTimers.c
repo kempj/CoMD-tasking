@@ -162,10 +162,9 @@ void printPerformanceResults(int nGlobalAtoms)
     fprintf(screenOut, "        Timer        # Calls    Avg/Call (ms)      Total (s)    %% Total\n");
     fprintf(screenOut, "___________________________________________________________________\n");
     for (int ii=0; ii<numberOfTimers; ++ii) {
-        double counterTime = perfTimer[0][ii].total*tick;
-        double percentTotal = counterTime/totalTime*100.0;
-        //double percentTotal = counterTime/(totalTime * omp_get_num_threads()) * 100.0;
         if (perfTimer[0][ii].count > 0) {
+            double counterTime = perfTimer[0][ii].total*tick;
+            double percentTotal = counterTime/totalTime*100.0;
             if(ii != totalTimer && ii != loopTimer && ii != initTimer) {
                 percentTotal = counterTime/(totalTime * omp_get_num_threads()) * 100.0;
             }
@@ -182,7 +181,9 @@ void printPerformanceResults(int nGlobalAtoms)
             }
         }
     }
+
     double totalParTime =  perfTimer[0][totalTimer].total * tick * omp_get_num_threads();
+    printf("total number of tasks = %lu\n", totalTasks);
     printf("total time = %f\n", totalParTime);
     printf("total task time = %f\n", taskTimeTotal*tick);
     printf("overhead = %f\n", totalParTime - (taskTimeTotal*tick));
