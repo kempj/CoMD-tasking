@@ -176,7 +176,7 @@ void printPerformanceResults(int nGlobalAtoms)
                     counterTime,
                     percentTotal);
                     //counterTime/loopTime*100.0);
-            if(ii != loopTimer && ii != totalTimer && ii != timestepTimer) {
+            if(ii != loopTimer && ii != totalTimer && ii != timestepTimer && ii != taskCreationTimer) {
                 taskTimeTotal += perfTimer[0][ii].total;
                 totalTasks += perfTimer[0][ii].count;
             }
