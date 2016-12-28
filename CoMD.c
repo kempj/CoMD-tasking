@@ -92,7 +92,6 @@ double *reductionArray;
 int *reductionArrayInt;
 double globalEnergy;
 
-int stdOutDep;
 
 
 int main(int argc, char** argv)
@@ -126,7 +125,7 @@ int main(int argc, char** argv)
     real_t *eKinetic = &(sim->eKinetic);
     real_t *ePotential = &(sim->ePotential);
 
-#pragma omp task shared(validate)  depend(in: eKinetic[0], ePotential[0]) depend(out: stdOutDep)
+#pragma omp task shared(validate)  depend(in: eKinetic[0], ePotential[0])
     {
         printSimulationDataYaml(yamlFile, sim);
         printSimulationDataYaml(screenOut, sim);
@@ -364,7 +363,7 @@ void printThings(SimFlat* s, int iStep, int numIters) //double elapsedTime)
     real_t *ePotential = &(s->ePotential);
     int *numAtoms = &(s->atoms->nLocal);
 
-#pragma omp task depend(in: eKinetic[0], ePotential[0], numAtoms[0]) depend(out: stdOutDep)
+#pragma omp task depend(in: eKinetic[0], ePotential[0], numAtoms[0])
     {
         stopTimerThread(0, timestepTimer);
         startTimer(printTimer);
