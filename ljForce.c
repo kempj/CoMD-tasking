@@ -162,13 +162,18 @@ void boxForce(int iBox, SimFlat *s)
     const real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
 
     int xyz[3];
-    xyz[0] = iBox % gridSize[0];
+    //xyz[0] = iBox % gridSize[0];
+    int x = iBox % gridSize[0];
     int tmpBox = iBox / gridSize[0];
-    xyz[1] = tmpBox % gridSize[1];
-    xyz[2] = tmpBox / gridSize[1];
+    //xyz[1] = tmpBox % gridSize[1];
+    int y = tmpBox % gridSize[1];
+    //xyz[2] = tmpBox / gridSize[1];
+    int z = tmpBox / gridSize[1];
 
-    real3 offset[3][3][3];
+    //real3 offset[3][3][3];
+    real3 offset;
 
+    /*
     int ijk[3];
     for(int i=0; i<3; i++) {
         ijk[0] = i;
@@ -188,13 +193,39 @@ void boxForce(int iBox, SimFlat *s)
             }
         }
     }
+    */
 
     int nIBox = s->boxes->nAtoms[iBox];
     double ePot = 0;
     for(int i=0; i<3; i++) {
+        //offset[0] = (x+i-1) % gridSize[0];
+        if(i+x-1 == gridSize[0]) {
+            offset[0] = localMax[0];
+        } else if(i+x-1 == -1) {
+            offset[0] =-localMax[0];
+        } else {
+            offset[0] = 0;
+        }
         for(int j=0; j<3; j++) {
+            //offset[1] = (y+j-1) % gridSize[1];
+            if(j+y-1 == gridSize[1]) {
+                offset[1] = localMax[1];
+            } else if(j+y-1 == -1) {
+                offset[1] =-localMax[1];
+            } else {
+                offset[1] = 0;
+            }
             for(int k=0; k<3; k++) {
-                int realJBox = getBoxFromTuple(s->boxes, i+xyz[0]-1, j+xyz[1]-1, k+xyz[2]-1);
+                //offset[2] = (z+k-1) % gridSize[2];
+                if(k+z-1 == gridSize[2]) {
+                    offset[2] = localMax[2];
+                } else if(k+z-1 == -1) {
+                    offset[2] =-localMax[2];
+                } else {
+                    offset[2] = 0;
+                }
+                //int realJBox = getBoxFromTuple(s->boxes, i+xyz[0]-1, j+xyz[1]-1, k+xyz[2]-1);
+                int realJBox = getBoxFromTuple(s->boxes, i+x-1, j+y-1, k+z-1);
                 int jBox = getLocalHaloTuple(s->boxes, realJBox);
                 int nJBox = s->boxes->nAtoms[jBox];
                 for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
@@ -202,7 +233,8 @@ void boxForce(int iBox, SimFlat *s)
                         real3 dr;
                         real_t r2 = 0.0;
                         for(int m=0; m<3; m++) {
-                            dr[m] = s->atoms->r[iOff][m] - (s->atoms->r[jOff][m] + offset[i][j][k][m]);
+                            //dr[m] = s->atoms->r[iOff][m] - (s->atoms->r[jOff][m] + offset[i][j][k][m]);
+                            dr[m] = s->atoms->r[iOff][m] - (s->atoms->r[jOff][m] + offset[m]);
                             r2+=dr[m]*dr[m];
                         }
                         if(r2<=rCut2 && r2>0.0) {
