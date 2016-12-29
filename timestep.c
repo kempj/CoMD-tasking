@@ -38,10 +38,8 @@ double timestep(SimFlat* s, int nSteps, real_t dt)
 {
     advanceVelPos(s, s->boxes->nLocalBoxes, 0.5*dt, dt);//in: atomF, atomP, out: atomP atomR
     for (int ii=0; ii<nSteps-1; ++ii) {
-        //advancePosition(s, s->boxes->nLocalBoxes, dt);//in: atomF, atomP, out: atomP
         redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
         computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
-        //advanceVelocity(s, s->boxes->nLocalBoxes, dt);//in: atomF, atomP, out: atomP
         advanceVelPos(s, s->boxes->nLocalBoxes, dt, dt);//in: atomF, atomP, out: atomP atomR
     }
     redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
