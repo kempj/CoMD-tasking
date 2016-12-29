@@ -102,15 +102,19 @@ LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
 
     ll->nTotalBoxes = ll->nLocalBoxes + ll->nHaloBoxes;
 
-    ll->nAtoms = comdMalloc(ll->nTotalBoxes*sizeof(int));
-    for (int iBox=0; iBox<ll->nTotalBoxes; ++iBox) {
+    //ll->nAtoms = comdMalloc(ll->nTotalBoxes*sizeof(int));
+    //for (int iBox=0; iBox<ll->nTotalBoxes; ++iBox) {
+    ll->nAtoms = comdMalloc(ll->nLocalBoxes*sizeof(int));
+    for (int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
         ll->nAtoms[iBox] = 0;
     }
 
     assert ( (ll->gridSize[0] >= 2) && (ll->gridSize[1] >= 2) && (ll->gridSize[2] >= 2) );
 
-    ll->nbrBoxes = comdMalloc(ll->nTotalBoxes*sizeof(int*));
-    for (int iBox=0; iBox<ll->nTotalBoxes; ++iBox) {
+    //ll->nbrBoxes = comdMalloc(ll->nTotalBoxes*sizeof(int*));
+    //for (int iBox=0; iBox<ll->nTotalBoxes; ++iBox) {
+    ll->nbrBoxes = comdMalloc(ll->nLocalBoxes*sizeof(int*));
+    for (int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
         ll->nbrBoxes[iBox] = comdMalloc(27*sizeof(int));
     }
 
@@ -182,7 +186,6 @@ void getNeighborRows(LinkCell* boxes, int y, int z, int* nbrBoxes)
     int sizeY = boxes->gridSize[1];
     int sizeZ = boxes->gridSize[2];
 
-    //printf("raw neighbor rows for row %d = (%d, %d) are: \n", z*sizeY*sizeX +y*sizeX, z, y);
     for(int i=z-1; i<=z+1; i++) {
         int localZ = i;
         if(i < 0) {
@@ -200,19 +203,8 @@ void getNeighborRows(LinkCell* boxes, int y, int z, int* nbrBoxes)
                 localY = 0;
             }
             nbrBoxes[(i-z+1)*3 + (j-y+1)] = localZ * sizeY * sizeX + localY *sizeX;
-            //printf("(%d, %d) = %d ", i, j, getBoxFromTuple(boxes, i, j, 0));
         }
-        //printf("\n");
     }
-    //printf("neighbor rows for row %d = (%d, %d) are: \n", z*sizeY*sizeX +y*sizeX, z, y);
-//    for(int i=0; i < 3; i++) {
-//        for(int j=0; j < 3; j++) {
-            //printf("%d ", nbrBoxes[i*3+j]);
-//        }
-        //printf("\n");
-//    }
-//    printf("\n");
-
 }
 
 /// \details

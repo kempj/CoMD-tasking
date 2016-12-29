@@ -217,9 +217,9 @@ SimFlat* initSimulation(Command cmd)
 
     createFccLattice(cmd.nx, cmd.ny, cmd.nz, latticeConstant, sim);
 
-    reductionArray = comdCalloc(sim->boxes->nTotalBoxes , sizeof(double));
-    reductionArrayInt  = comdCalloc(sim->boxes->nTotalBoxes , sizeof(int));
-    r3ReductionArray = comdCalloc(sim->boxes->nTotalBoxes , sizeof(real3));
+    reductionArray = comdCalloc(sim->boxes->nLocalBoxes , sizeof(double));
+    reductionArrayInt  = comdCalloc(sim->boxes->nLocalBoxes , sizeof(int));
+    r3ReductionArray = comdCalloc(sim->boxes->nLocalBoxes , sizeof(real3));
 
     setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
     randomDisplacements(cmd.initialDelta);//inout atomR, in atomP
