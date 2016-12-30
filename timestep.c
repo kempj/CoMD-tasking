@@ -74,19 +74,21 @@ void advanceVelPos(SimFlat* s, real_t dtVel, real_t dtPos)
             {
                 startTimer(velPosTimer);
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
-                    for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
-                        s->atoms->p[iOff][0] += dtVel*s->atoms->f[iOff][0];
-                        s->atoms->p[iOff][1] += dtVel*s->atoms->f[iOff][1];
-                        s->atoms->p[iOff][2] += dtVel*s->atoms->f[iOff][2];
-                    }
+                    cellVelocity(s->atoms, s->boxes->nAtoms[iBox], iBox, dtVel);
+                    //for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                    //    s->atoms->p[iOff][0] += dtVel*s->atoms->f[iOff][0];
+                    //    s->atoms->p[iOff][1] += dtVel*s->atoms->f[iOff][1];
+                    //    s->atoms->p[iOff][2] += dtVel*s->atoms->f[iOff][2];
+                    //}
 
-                    for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
-                        int iSpecies = s->atoms->iSpecies[iOff];
-                        real_t invMass = 1.0/s->species[iSpecies].mass;
-                        s->atoms->r[iOff][0] += dtPos*s->atoms->p[iOff][0]*invMass;
-                        s->atoms->r[iOff][1] += dtPos*s->atoms->p[iOff][1]*invMass;
-                        s->atoms->r[iOff][2] += dtPos*s->atoms->p[iOff][2]*invMass;
-                    }
+                    cellPosition(s->atoms, s->species, s->boxes->nAtoms[iBox], iBox, dtPos);
+                    //for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                    //    int iSpecies = s->atoms->iSpecies[iOff];
+                    //    real_t invMass = 1.0/s->species[iSpecies].mass;
+                    //    s->atoms->r[iOff][0] += dtPos*s->atoms->p[iOff][0]*invMass;
+                    //    s->atoms->r[iOff][1] += dtPos*s->atoms->p[iOff][1]*invMass;
+                    //    s->atoms->r[iOff][2] += dtPos*s->atoms->p[iOff][2]*invMass;
+                    //}
                 }
                 stopTimer(velPosTimer);
             }
@@ -105,11 +107,12 @@ void advanceVelocity(SimFlat* s, real_t dt)
             {
                 startTimer(velocityTimer);
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
-                    for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
-                        s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
-                        s->atoms->p[iOff][1] += dt*s->atoms->f[iOff][1];
-                        s->atoms->p[iOff][2] += dt*s->atoms->f[iOff][2];
-                    }
+                    cellVelocity(s->atoms, s->boxes->nAtoms[iBox], iBox, dt);
+                    //for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                    //    s->atoms->p[iOff][0] += dt*s->atoms->f[iOff][0];
+                    //    s->atoms->p[iOff][1] += dt*s->atoms->f[iOff][1];
+                    //    s->atoms->p[iOff][2] += dt*s->atoms->f[iOff][2];
+                    //}
                 }
                 stopTimer(velocityTimer);
             }
@@ -127,15 +130,15 @@ void advancePosition(SimFlat* s, real_t dt)
 #pragma omp task depend(inout: atomR[rowBox*MAXATOMS]) depend(in: atomP[rowBox*MAXATOMS])
             {
                 startTimer(positionTimer);
-                //printf("Position for %d - %d\n", rowBox, rowBox + s->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
-                    for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
-                        int iSpecies = s->atoms->iSpecies[iOff];
-                        real_t invMass = 1.0/s->species[iSpecies].mass;
-                        s->atoms->r[iOff][0] += dt*s->atoms->p[iOff][0]*invMass;
-                        s->atoms->r[iOff][1] += dt*s->atoms->p[iOff][1]*invMass;
-                        s->atoms->r[iOff][2] += dt*s->atoms->p[iOff][2]*invMass;
-                    }
+                    cellPosition(s->atoms, s->species, s->boxes->nAtoms[iBox], iBox, dt);
+                    //for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
+                    //    int iSpecies = s->atoms->iSpecies[iOff];
+                    //    real_t invMass = 1.0/s->species[iSpecies].mass;
+                    //    s->atoms->r[iOff][0] += dt*s->atoms->p[iOff][0]*invMass;
+                    //    s->atoms->r[iOff][1] += dt*s->atoms->p[iOff][1]*invMass;
+                    //    s->atoms->r[iOff][2] += dt*s->atoms->p[iOff][2]*invMass;
+                    //}
                 }
                 stopTimer(positionTimer);
             }
