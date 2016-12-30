@@ -33,8 +33,8 @@ typedef struct LinkCellSt
 LinkCell* initLinkCells(const struct DomainSt* domain, real_t cutoff);
 void destroyLinkCells(LinkCell** boxes);
 
-int getNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes);
-int getHaloNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes);
+//int getNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes);
+//int getHaloNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes);
 int getLocalNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes);
 void putAtomInBox(LinkCell* boxes, struct AtomsSt* atoms,
                   const int gid, const int iType,
@@ -45,9 +45,9 @@ int getBoxFromCoord(LinkCell* boxes, real_t rr[3]);
 
 int getBoxFromTuple(LinkCell* boxes, int x, int y, int z);
 
-void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes, 
-               struct AtomsSt* srcAtoms, struct AtomsSt* destAtoms, 
-               int srcPosition, int srcBox, int destBox);
+//void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes, 
+//               struct AtomsSt* srcAtoms, struct AtomsSt* destAtoms, 
+//               int srcPosition, int srcBox, int destBox);
 
 void updateLinkCells( LinkCell* boxes, LinkCell* boxesBuffer, 
                       struct AtomsSt* atoms, struct AtomsSt* buffer);

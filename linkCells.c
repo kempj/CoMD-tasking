@@ -79,7 +79,7 @@
 extern struct SimFlatSt* sim;
 
 static void copyAtom(Atoms* in, Atoms* out, int iAtom, int iBox, int jAtom, int jBox);
-static void emptyHaloCells(LinkCell* boxes);
+//static void emptyHaloCells(LinkCell* boxes);
 
 LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
 {
@@ -102,8 +102,6 @@ LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
 
     ll->nTotalBoxes = ll->nLocalBoxes + ll->nHaloBoxes;
 
-    //ll->nAtoms = comdMalloc(ll->nTotalBoxes*sizeof(int));
-    //for (int iBox=0; iBox<ll->nTotalBoxes; ++iBox) {
     ll->nAtoms = comdMalloc(ll->nLocalBoxes*sizeof(int));
     for (int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
         ll->nAtoms[iBox] = 0;
@@ -111,8 +109,6 @@ LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
 
     assert ( (ll->gridSize[0] >= 2) && (ll->gridSize[1] >= 2) && (ll->gridSize[2] >= 2) );
 
-    //ll->nbrBoxes = comdMalloc(ll->nTotalBoxes*sizeof(int*));
-    //for (int iBox=0; iBox<ll->nTotalBoxes; ++iBox) {
     ll->nbrBoxes = comdMalloc(ll->nLocalBoxes*sizeof(int*));
     for (int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
         ll->nbrBoxes[iBox] = comdMalloc(27*sizeof(int));
@@ -137,6 +133,7 @@ void destroyLinkCells(LinkCell** boxes)
     return;
 }
 
+// used
 //for shared memory only, takes a tuple for a halo cell and returns the local cell that it corresponds to.
 void haloToLocalCell(int *x, int *y, int *z, int *gridSize)
 {
@@ -154,6 +151,7 @@ void haloToLocalCell(int *x, int *y, int *z, int *gridSize)
         *z = 0;
 }
 
+// used
 //for shared memory only, takes a box ID for a halo cell and returns the local cell that it corresponds to.
 int getLocalHaloTuple(LinkCell *boxes, int iBox) {
     int x,y,z;
@@ -164,6 +162,7 @@ int getLocalHaloTuple(LinkCell *boxes, int iBox) {
     return getBoxFromTuple(boxes, x, y, z);
 }
 
+// used
 int getLocalNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
 {
     int ix, iy, iz;
@@ -180,6 +179,7 @@ int getLocalNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
     return count;
 }
 
+// used
 void getNeighborRows(LinkCell* boxes, int y, int z, int* nbrBoxes)
 {
     int sizeX = boxes->gridSize[0];
@@ -213,8 +213,7 @@ void getNeighborRows(LinkCell* boxes, int y, int z, int* nbrBoxes)
 /// list (as neighbor 13).  Caller is responsible to alloc and free
 /// nbrBoxes.
 /// \return The number of nbr boxes (always 27 in this implementation).
-
-//TODO: This shouldn't be used any more.
+/*
 int getNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
 {
     int ix, iy, iz;
@@ -256,7 +255,10 @@ int getHaloNeighborBoxes(LinkCell* boxes, int iBox, int* nbrBoxes)
     return count;
 }
 
+*/
 
+
+// used
 /// \details
 /// Finds the appropriate link cell for an atom based on the spatial
 /// coordinates and stores data in that link cell.
@@ -297,6 +299,7 @@ void putAtomInBox(LinkCell* boxes, Atoms* atoms,
     atoms->p[iOff][2] = pz;
 }
 
+// used
 /// Calculates the link cell index from the grid coords.  The valid
 /// coordinate range in direction ii is [-1, gridSize[ii]].  Any
 /// coordinate that involves a -1 or gridSize[ii] is a halo link cell.
@@ -343,6 +346,7 @@ int getBoxFromTuple(LinkCell* boxes, int ix, int iy, int iz)
 /// \param srcPosition [in]  The index with box iBox of the atom to be moved.
 /// \param srcBox [in] The index of the link cell the particle is moving from.
 /// \param destBox [in] The index of the link cell the particle is moving to.
+/*
 void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes, 
                Atoms* srcAtoms, Atoms* destAtoms, 
                int srcPosition, int srcBox, int destBox)
@@ -366,7 +370,9 @@ void moveAtom( LinkCell* srcBoxes, LinkCell *destBoxes,
     }
     return;
 }
+*/
 
+// only used by copySortedCell to sort while moving
 int nextHighestAtom(Atoms *sourceAtoms, int atomOffset, int nAtoms, int maxGID, int minGID) 
 {
     int targetPosition = 0;
@@ -380,7 +386,7 @@ int nextHighestAtom(Atoms *sourceAtoms, int atomOffset, int nAtoms, int maxGID, 
     return targetPosition;
 }
 
-//This copies a cell from one box buffer to another.
+//This copies a cell from one box buffer to another and sorts it in the process.
 void copySortedCell(LinkCell *sourceBoxes, LinkCell *destBoxes, Atoms *sourceAtoms, Atoms *destAtoms, int iBox)
 {
     const int numAtoms = sourceBoxes->nAtoms[iBox];
@@ -459,10 +465,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
         }
     }
 
-    //At this point, the buffer is the correct output for the iteration.
-    //TODO: set up some sort of pointer swap so the tasks that just copy back aren't necessary.
-
-    //This loop copies the cells from the buffer back to the main buffer.
+    //This loop copies the cells from the buffer back to the main buffer while sorting them.
     for(int z=0; z < sim->boxes->gridSize[2]; z++) {
         for(int y=0; y < sim->boxes->gridSize[1]; y++) {
             int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
@@ -482,6 +485,7 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
     }
 }
 
+/// Used in printSimulationDataYaml
 /// \return The largest number of atoms in any link cell.
 int maxOccupancy(LinkCell* boxes)
 {
@@ -491,9 +495,7 @@ int maxOccupancy(LinkCell* boxes)
 
     int globalMax;
 
-    //startTimer(commReduceTimer);
     maxIntParallel(&localMax, &globalMax, 1);
-    //stopTimer(commReduceTimer);
 
     return globalMax;
 }
@@ -513,6 +515,7 @@ void copyAtom(Atoms* in, Atoms* out, int inAtom, int inBox, int outAtom, int out
     memcpy(out->U+outOff,  in->U+inOff,  sizeof(real_t));
 }
 
+//used
 /// Get the index of the link cell that contains the specified
 /// coordinate.  This can be either a halo or a local link cell.
 ///
@@ -560,11 +563,11 @@ int getBoxFromCoord(LinkCell* boxes, real_t rr[3])
 }
 
 /// Set the number of atoms to zero in all halo link cells.
-void emptyHaloCells(LinkCell* boxes)
-{
-    for (int ii=boxes->nLocalBoxes; ii<boxes->nTotalBoxes; ++ii)
-        boxes->nAtoms[ii] = 0;
-}
+//void emptyHaloCells(LinkCell* boxes)
+//{
+//    for (int ii=boxes->nLocalBoxes; ii<boxes->nTotalBoxes; ++ii)
+//        boxes->nAtoms[ii] = 0;
+//}
 
 /// Get the grid coordinates of the link cell with index iBox.  Local
 /// cells are easy as they use a standard 1D->3D mapping.  Halo cell are
