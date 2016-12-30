@@ -10,60 +10,58 @@
 #include "parallel.h"
 #include "performanceTimers.h"
 
-static void advanceVelPos(SimFlat* s, int nBoxes, real_t dtVel, real_t dtPos);
-static void advanceVelocity(SimFlat* s, int nBoxes, real_t dt);
-static void advancePosition(SimFlat* s, int nBoxes, real_t dt);
+static void advanceVelPos(SimFlat* s, real_t dtVel, real_t dtPos);
+static void advanceVelocity(SimFlat* s, real_t dt);
+static void advancePosition(SimFlat* s, real_t dt);
 
 extern double *reductionArray;
 extern int *reductionArrayInt;
 extern double globalEnergy;
 
 /// Advance the simulation time to t+dt using a leap frog method
-/// (equivalent to velocity verlet).
 ///
-/// Forces must be computed before calling the integrator the first time.
-///
-///  - Advance velocities half time step using forces
-///  - Advance positions full time step using velocities
-///  - Update link cells and exchange remote particles
-///  - Compute forces
-///  - Update velocities half time step using forces
-///
-/// This leaves positions, velocities, and forces at t+dt, with the
-/// forces ready to perform the half step velocity update at the top of
-/// the next call.
-///
-/// After nSteps the kinetic energy is computed for diagnostic output.
+/// This was reworked for the tasking version to replace a chain of 5 tasks with 3 tasks.
+/// This should improve locality and decrease task overhead.
 double timestep(SimFlat* s, int nSteps, real_t dt)
 {
-    advanceVelPos(s, s->boxes->nLocalBoxes, 0.5*dt, dt);//in: atomF, atomP, out: atomP atomR
+    advanceVelPos(s, 0.5*dt, dt);//in: atomF, atomP, out: atomP atomR
     for (int ii=0; ii<nSteps-1; ++ii) {
         redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
         computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
-        advanceVelPos(s, s->boxes->nLocalBoxes, dt, dt);//in: atomF, atomP, out: atomP atomR
+        advanceVelPos(s, dt, dt);//in: atomF, atomP, out: atomP atomR
     }
     redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
     computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
-    advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
+    advanceVelocity(s, 0.5*dt);//in: atomF, atomP, out: atomP
     kineticEnergy(s);//atomP -> KE and nAtoms -> nLocal
     return s->ePotential;
 }
-//    for (int ii=0; ii<nSteps-1; ++ii) {
-//        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
-//        advancePosition(s, s->boxes->nLocalBoxes, dt);//in: atomF, atomP, out: atomP
-//        redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
-//        computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
-//        advanceVelocity(s, s->boxes->nLocalBoxes, 0.5*dt);//in: atomF, atomP, out: atomP
-//    }
-//    kineticEnergy(s);//atomP -> KE and nAtoms -> nLocal
-
 
 void computeForce(SimFlat* s)
 {
     s->pot->force(s);
 }
 
-void advanceVelPos(SimFlat* s, int nBoxes, real_t dtVel, real_t dtPos)
+void cellVelocity(Atoms *atoms, int nAtoms, int iBox, real_t dt) {
+    for (int iOff=MAXATOMS*iBox,ii=0; ii<nAtoms; ii++,iOff++) {
+        atoms->p[iOff][0] += dt*atoms->f[iOff][0];
+        atoms->p[iOff][1] += dt*atoms->f[iOff][1];
+        atoms->p[iOff][2] += dt*atoms->f[iOff][2];
+    }
+}
+
+void cellPosition(Atoms *atoms, SpeciesData * species, int nAtoms, int iBox, real_t dt) 
+{
+    for (int iOff=MAXATOMS*iBox,ii=0; ii<nAtoms; ii++,iOff++) {
+        int iSpecies = atoms->iSpecies[iOff];
+        real_t invMass = 1.0/species[iSpecies].mass;
+        atoms->r[iOff][0] += dt*atoms->p[iOff][0]*invMass;
+        atoms->r[iOff][1] += dt*atoms->p[iOff][1]*invMass;
+        atoms->r[iOff][2] += dt*atoms->p[iOff][2]*invMass;
+    }
+}
+
+void advanceVelPos(SimFlat* s, real_t dtVel, real_t dtPos)
 {
     real3 *atomP = s->atoms->p;
     real3 *atomR = s->atoms->r;
@@ -96,7 +94,7 @@ void advanceVelPos(SimFlat* s, int nBoxes, real_t dtVel, real_t dtPos)
     }
 }
 
-void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
+void advanceVelocity(SimFlat* s, real_t dt)
 {
     real3 *atomP = s->atoms->p;
     real3 *atomF = s->atoms->f;
@@ -119,7 +117,7 @@ void advanceVelocity(SimFlat* s, int nBoxes, real_t dt)
     }
 }
 
-void advancePosition(SimFlat* s, int nBoxes, real_t dt)
+void advancePosition(SimFlat* s, real_t dt)
 {
     real3 *atomP = s->atoms->p;
     real3 *atomR = s->atoms->r;
@@ -196,13 +194,9 @@ void kineticEnergy(SimFlat* s)
 /// positions have been updated by the integrator.
 ///
 /// - updateLinkCells: Since atoms have moved, some may be in the wrong
-///   link cells.
-/// - haloExchange (atom version): Sends atom data to remote tasks. 
-/// - sort: Sort the atoms.
+///   link cells. This also sorts now.
 ///
 /// \see updateLinkCells
-/// \see initAtomHaloExchange
-/// \see sortAtomsInCell
 void redistributeAtoms(SimFlat* s)
 {
     //TODO: re-organize this in a better way.
