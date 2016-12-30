@@ -80,7 +80,7 @@ DEFAULT: ${CoMD_EXE}
 %.o: %.c
 	${CC} ${CFLAGS} -c $< -o $@
 
-${CoMD_EXE}: ${BIN_DIR} ${OBJECTS} 
+${CoMD_EXE}: ${BIN_DIR} CoMD_info.h ${OBJECTS} 
 	${CC} ${CFLAGS} -o ${CoMD_EXE} ${OBJECTS} ${LDFLAGS}
 
 CoMD_info.h: Makefile
