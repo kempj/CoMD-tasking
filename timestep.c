@@ -27,11 +27,11 @@ double timestep(SimFlat* s, int nSteps, real_t dt)
     advanceVelPos(s, 0.5*dt, dt);//in: atomF, atomP, out: atomP atomR
     for (int ii=0; ii<nSteps-1; ++ii) {
         redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
-        computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
+        computeForce(s);                                  //in: atomR, out: atomF, reduction, but 9->1 deps
         advanceVelPos(s, dt, dt);//in: atomF, atomP, out: atomP atomR
     }
     redistributeAtoms(s);                             //potentially entire atoms moved, but 9->1 deps
-    computeForce(s);                                  //in: atomR, out: atomF, atomU, reduction, but 9->1 deps
+    computeForce(s);                                  //in: atomR, out: atomF, reduction, but 9->1 deps
     advanceVelocity(s, 0.5*dt);//in: atomF, atomP, out: atomP
     kineticEnergy(s);//atomP -> KE and nAtoms -> nLocal
     return s->ePotential;
@@ -134,23 +134,26 @@ void kineticEnergy(SimFlat* s)
                  depend( in: atomP[rowBox*MAXATOMS], nAtoms[rowBox])
             {
                 startTimer(KETimer);
+                int sumAtoms = 0;
+                real_t sumKE = 0;
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
-                    reductionArray[iBox] = 0.;
                     for (int iOff=MAXATOMS*iBox,ii=0; ii<s->boxes->nAtoms[iBox]; ii++,iOff++) {
                         int iSpecies = s->atoms->iSpecies[iOff];
                         real_t invMass = 0.5/s->species[iSpecies].mass;
-                        reductionArray[iBox] += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
-                                                  s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
-                                                  s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
+                        sumKE += ( s->atoms->p[iOff][0] * s->atoms->p[iOff][0] +
+                                   s->atoms->p[iOff][1] * s->atoms->p[iOff][1] +
+                                   s->atoms->p[iOff][2] * s->atoms->p[iOff][2] )*invMass;
                     }
-                    reductionArrayInt[iBox] = s->boxes->nAtoms[iBox];
+                    sumAtoms += s->boxes->nAtoms[iBox];
                 }
+                reductionArrayInt[rowBox] += sumAtoms;
+                reductionArray[rowBox] += sumKE;
                 stopTimer(KETimer);
             }
         }
     }
-    ompReduceRowReal(reductionArray, s->boxes->gridSize);
-    ompReduceRowInt(reductionArrayInt, s->boxes->gridSize);
+    ompReduceReal(reductionArray, s->boxes->nLocalBoxes, s->boxes->gridSize[0]);
+    ompReduceInt(reductionArrayInt, s->boxes->nLocalBoxes, s->boxes->gridSize[0]);
 
     real_t *eKinetic= &(s->eKinetic);
     int *atomTotal = &(s->atoms->nLocal);

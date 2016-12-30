@@ -24,7 +24,7 @@ static int nRanks = 1;
 
 //-------- Int Reductions --------------
 
-void reduceInt(int *depArray, int arraySize, int innerStride)
+void ompReduceInt(int *depArray, int arraySize, int innerStride)
 {
     int numDeps = 16;
     int cellsPerTask = numDeps * innerStride;
@@ -75,12 +75,12 @@ void ompReduceRowInt(int *depArray, int gridSize[3])
             }
         }
     }
-    reduceInt(depArray, gridSize[0]*gridSize[1]*gridSize[2], gridSize[0]);
+    ompReduceInt(depArray, gridSize[0]*gridSize[1]*gridSize[2], gridSize[0]);
 }
 
 //-------- R3 Reductions --------------
 
-void reduceR3(real3 *depArray, int arraySize, int innerStride)
+void ompReduceR3(real3 *depArray, int arraySize, int innerStride)
 {
     int numDeps = 16;
     int cellsPerTask = numDeps * innerStride;
@@ -133,12 +133,12 @@ void ompReduceRowR3(real3 *depArray, int gridSize[3])
             }
         }
     }
-    reduceR3(depArray, gridSize[0]*gridSize[1]*gridSize[2], gridSize[0]);
+    ompReduceR3(depArray, gridSize[0]*gridSize[1]*gridSize[2], gridSize[0]);
 }
 
 //-------- Real Reductions --------------
 
-void reduceReal(real_t *depArray, int arraySize, int innerStride)
+void ompReduceReal(real_t *depArray, int arraySize, int innerStride)
 {
     int numDeps = 16;
     int cellsPerTask = numDeps * innerStride;
@@ -187,7 +187,7 @@ void ompReduceRowReal(real_t *depArray, int gridSize[3])
             }
         }
     }
-    reduceReal(depArray, gridSize[0]*gridSize[1]*gridSize[2], gridSize[0]);
+    ompReduceReal(depArray, gridSize[0]*gridSize[1]*gridSize[2], gridSize[0]);
 }
 
 #ifdef DO_MPI

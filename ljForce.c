@@ -148,7 +148,7 @@ void ljPrint(FILE* file, BasePotential* pot)
 
 
 //calculates the force on atoms in a box.
-void boxForce(int iBox, SimFlat *s)
+real_t boxForce(int iBox, SimFlat *s)
 {
     const int* gridSize = s->boxes->gridSize;
     const real_t* localMax = s->boxes->localMax;
@@ -194,7 +194,7 @@ void boxForce(int iBox, SimFlat *s)
     }
 
     int nIBox = s->boxes->nAtoms[iBox];
-    double ePot = 0;
+    real_t ePot = 0;
     for(int i=0; i<3; i++) {
         for(int j=0; j<3; j++) {
             for(int k=0; k<3; k++) {
@@ -213,7 +213,6 @@ void boxForce(int iBox, SimFlat *s)
                             r2 = 1.0/r2;
                             real_t r6 = s6 * (r2*r2*r2);
                             real_t eLocal = r6 * (r6 - 1.0) - eShift;
-                            //s->atoms->U[iOff] += 0.5*eLocal;
                             ePot += 0.5*eLocal;
 
                             real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
@@ -226,39 +225,39 @@ void boxForce(int iBox, SimFlat *s)
             }
         }
     }
-    reductionArray[iBox] = ePot;
+    return ePot;
 }
 
 int ljForce(SimFlat* s)
 {
+    int *gridSize = s->boxes->gridSize;
     real3  *atomF = s->atoms->f;
     real3  *atomR = s->atoms->r;
-    //real_t *atomU = s->atoms->U;
-    real_t *atomU = s->atoms->f[0];
     int dep[9];
 
     for(int z=0; z < s->boxes->gridSize[2]; z++) {
         for(int y=0; y < s->boxes->gridSize[1]; y++) {
             int rowBox = z*s->boxes->gridSize[1]*s->boxes->gridSize[0] + y*s->boxes->gridSize[0];
             getNeighborRows(s->boxes, y, z, dep);
-#pragma omp task depend(out: atomU[rowBox*MAXATOMS], atomF[rowBox*MAXATOMS], reductionArray[rowBox]) \
+#pragma omp task depend(out: atomF[rowBox*MAXATOMS], reductionArray[rowBox]) \
                  depend( in: atomR[dep[0]*MAXATOMS], atomR[dep[1]*MAXATOMS], atomR[dep[2]*MAXATOMS], \
                              atomR[dep[3]*MAXATOMS], atomR[dep[4]*MAXATOMS], atomR[dep[5]*MAXATOMS], \
                              atomR[dep[6]*MAXATOMS], atomR[dep[7]*MAXATOMS], atomR[dep[8]*MAXATOMS] )
             {
                 startTimer(computeForceTimer);
+                real_t ePot = 0;
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
                     for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
                         zeroReal3(s->atoms->f[ii]);
-                        //s->atoms->U[ii] = 0.;
                     }
-                    boxForce(iBox, s);
+                    ePot += boxForce(iBox, s);
                 }
+                reductionArray[rowBox] = ePot;
                 stopTimer(computeForceTimer);
             }
         }
     }
-    ompReduceRowReal(reductionArray, s->boxes->gridSize);
+    ompReduceReal(reductionArray, s->boxes->nLocalBoxes, gridSize[0]);
 
     real_t *ePotential = &(s->ePotential);
 #pragma omp task depend(inout: reductionArray[0]) depend(out: ePotential[0])

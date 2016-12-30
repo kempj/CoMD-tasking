@@ -120,7 +120,7 @@ int main(int argc, char** argv)
     
     //This is done in a parallel region, because several of the functions it calls create tasks.
     //  If this was done in serial, these functions would need two versions.
-    sim = initSimulation(cmd);//out: P, R, U, F, KE
+    sim = initSimulation(cmd);//out: P, R, F, KE
 
     Validate* validate;
     real_t *eKinetic = &(sim->eKinetic);
@@ -224,8 +224,6 @@ SimFlat* initSimulation(Command cmd)
     setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
     randomDisplacements(cmd.initialDelta);//inout atomR, in atomP
 
-    //sim->atomExchange = initAtomHaloExchange(sim->domain, sim->boxes);
-
     startTimer(redistributeTimer);
     redistributeAtoms(sim);//inout: atomP, atomR
     stopTimer(redistributeTimer);
@@ -252,7 +250,6 @@ void destroySimulation(SimFlat** ps)
     destroyLinkCells(&(s->boxes));
     destroyAtoms(s->atoms);
     destroyAtoms(s->atomsBuffer);
-    //destroyHaloExchange(&(s->atomExchange));
     comdFree(s->species);
     comdFree(s->domain);
     comdFree(s);

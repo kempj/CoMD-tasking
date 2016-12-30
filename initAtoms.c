@@ -33,18 +33,16 @@ Atoms* initAtoms(LinkCell* boxes)
     atoms->r =        (real3*) comdMalloc(maxTotalAtoms*sizeof(real3));
     atoms->p =        (real3*) comdMalloc(maxTotalAtoms*sizeof(real3));
     atoms->f =        (real3*) comdMalloc(maxTotalAtoms*sizeof(real3));
-    //atoms->U =        (real_t*)comdMalloc(maxTotalAtoms*sizeof(real_t));
 
     atoms->nLocal = 0;
     atoms->nGlobal = 0;
 
-    for (int iOff = 0; iOff < maxTotalAtoms; iOff++) {
+    for(int iOff = 0; iOff < maxTotalAtoms; iOff++) {
         atoms->gid[iOff] = 0;
         atoms->iSpecies[iOff] = 0;
         zeroReal3(atoms->r[iOff]);
         zeroReal3(atoms->p[iOff]);
         zeroReal3(atoms->f[iOff]);
-        //atoms->U[iOff] = 0.;
     }
 
     return atoms;
@@ -57,7 +55,6 @@ void destroyAtoms(Atoms *atoms)
     freeMe(atoms,r);
     freeMe(atoms,p);
     freeMe(atoms,f);
-    //freeMe(atoms,U);
     comdFree(atoms);
 }
 
@@ -78,7 +75,7 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
     // create and place atoms
     int begin[3];
     int end[3];
-    for (int ii=0; ii<3; ++ii)
+    for(int ii=0; ii<3; ++ii)
     {
         begin[ii] = floor(localMin[ii]/lat);
         end[ii]   = ceil (localMax[ii]/lat);
@@ -86,10 +83,10 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 
     real_t px,py,pz;
     px=py=pz=0.0;
-    for (int ix=begin[0]; ix<end[0]; ++ix) {
-        for (int iy=begin[1]; iy<end[1]; ++iy) {
-            for (int iz=begin[2]; iz<end[2]; ++iz) {
-                for (int ib=0; ib<nb; ++ib) {
+    for(int ix=begin[0]; ix<end[0]; ++ix) {
+        for(int iy=begin[1]; iy<end[1]; ++iy) {
+            for(int iz=begin[2]; iz<end[2]; ++iz) {
+                for(int ib=0; ib<nb; ++ib) {
                     real_t rx = (ix+basis[ib][0]) * lat;
                     real_t ry = (iy+basis[ib][1]) * lat;
                     real_t rz = (iz+basis[ib][2]) * lat;
@@ -111,33 +108,35 @@ void createFccLattice(int nx, int ny, int nz, real_t lat, SimFlat* s)
 void setVcm()
 {
     real3 *atomP = sim->atoms->p;
-    //for (int iBox=0; iBox < sim->boxes->nLocalBoxes; ++iBox) {
     for(int z=0; z < sim->boxes->gridSize[2]; z++) {
         for(int y=0; y < sim->boxes->gridSize[1]; y++) {
             int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
 #pragma omp task depend( in: atomP[rowBox*MAXATOMS]) depend( out: r3ReductionArray[rowBox], reductionArray[rowBox] )
             {
                 startTimer(vcm2Timer);
-                //printf("vcm2 for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
+                real_t sumSpecies = 0;
+                real3 sumVelocity;
+                zeroReal3(sumVelocity);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     int Off = MAXATOMS*iBox;
-                    reductionArray[iBox] = 0;
-                    zeroReal3(r3ReductionArray[iBox]);
                     for(int ii=0; ii < sim->boxes->nAtoms[iBox]; ++ii) {
-                        r3ReductionArray[iBox][0] += sim->atoms->p[Off+ii][0];
-                        r3ReductionArray[iBox][1] += sim->atoms->p[Off+ii][1];
-                        r3ReductionArray[iBox][2] += sim->atoms->p[Off+ii][2];
-
+                        for(int m=0; m<3; m++) {
+                            sumVelocity[m] += sim->atoms->p[Off+ii][m];
+                        }
                         int iSpecies = sim->atoms->iSpecies[Off+ii];
-                        reductionArray[iBox] += sim->species[iSpecies].mass;
+                        sumSpecies += sim->species[iSpecies].mass;
                     }
+                    for(int m=0; m<3; m++) {
+                        r3ReductionArray[rowBox][m] = sumVelocity[m];
+                    }
+                    reductionArray[rowBox] = sumSpecies;
                 }
                 stopTimer(vcm2Timer);
             }
         }
     }
-    ompReduceRowR3(r3ReductionArray, sim->boxes->gridSize);
-    ompReduceRowReal(reductionArray, sim->boxes->gridSize);
+    ompReduceR3(r3ReductionArray, sim->boxes->nLocalBoxes, sim->boxes->gridSize[0]);
+    ompReduceReal(reductionArray, sim->boxes->nLocalBoxes, sim->boxes->gridSize[0]);
 
 #pragma omp task depend(inout: r3ReductionArray[0], reductionArray[0]) depend( out: vInit[0])
     {
@@ -153,16 +152,14 @@ void setVcm()
         stopTimer(vcm3Timer);
     }
 
-    //for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
     for(int z=0; z < sim->boxes->gridSize[2]; z++) {
         for(int y=0; y < sim->boxes->gridSize[1]; y++) {
             int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
 #pragma omp task depend(inout: atomP[rowBox*MAXATOMS]) depend(in: vInit[0])
             {
                 startTimer(vcm4Timer);
-                //printf("vcm4 for %d - %d\n", rowBox, rowBox + sim->boxes->gridSize[0]);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
-                    for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                    for(int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
                         int iSpecies = sim->atoms->iSpecies[iOff];
                         real_t mass = sim->species[iSpecies].mass;
 
@@ -187,7 +184,7 @@ void setTemperature(real_t temperature)
             {
                 startTimer(temp1Timer);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
-                    for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                    for(int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
                         int iType = sim->atoms->iSpecies[iOff];
                         real_t mass = sim->species[iType].mass;
                         real_t sigma = sqrt(kB_eV * temperature/mass);
@@ -208,7 +205,7 @@ void setTemperature(real_t temperature)
     
     real_t *eKinetic = &(sim->eKinetic);
 
-    //for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
+    //for(int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
     for(int z=0; z < sim->boxes->gridSize[2]; z++) {
         for(int y=0; y < sim->boxes->gridSize[1]; y++) {
             int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
@@ -218,7 +215,7 @@ void setTemperature(real_t temperature)
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
                     real_t temp = (sim->eKinetic/sim->atoms->nGlobal)/kB_eV/1.5;
                     real_t scaleFactor = sqrt(temperature/temp);
-                    for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                    for(int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
                         sim->atoms->p[iOff][0] *= scaleFactor;
                         sim->atoms->p[iOff][1] *= scaleFactor;
                         sim->atoms->p[iOff][2] *= scaleFactor;
@@ -239,7 +236,6 @@ void randomDisplacements(real_t delta)
 {
     real3 *atomR = sim->atoms->r;
     real3 *atomP = sim->atoms->p; //AtomP used so setTemp is done before this begins.
-    //for (int iBox=0; iBox<sim->boxes->nLocalBoxes; ++iBox) {
     for(int z=0; z < sim->boxes->gridSize[2]; z++) {
         for(int y=0; y < sim->boxes->gridSize[1]; y++) {
             int rowBox = z*sim->boxes->gridSize[1]*sim->boxes->gridSize[0]+y*sim->boxes->gridSize[0];
@@ -248,7 +244,7 @@ void randomDisplacements(real_t delta)
             {
                 startTimer(displacementTimer);
                 for(int iBox=rowBox; iBox < rowBox + sim->boxes->gridSize[0]; iBox++) {
-                    for (int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
+                    for(int iOff=MAXATOMS*iBox, ii=0; ii<sim->boxes->nAtoms[iBox]; ++ii, ++iOff) {
                         uint64_t seed = mkSeed(sim->atoms->gid[iOff], 457);
                         sim->atoms->r[iOff][0] += (2.0*lcg61(&seed)-1.0) * delta;
                         sim->atoms->r[iOff][1] += (2.0*lcg61(&seed)-1.0) * delta;
