@@ -239,7 +239,7 @@ int eamForce(SimFlat* s)
    for (int ii=0; ii<fsize; ii++)
    {
       zeroReal3(s->atoms->f[ii]);
-      s->atoms->U[ii] = 0.;
+      //s->atoms->U[ii] = 0.;//never used
       pot->dfEmbed[ii] = 0.;
       pot->rhobar[ii] = 0.;
    }
@@ -247,49 +247,33 @@ int eamForce(SimFlat* s)
    int nNbrBoxes = 27;
    // loop over local boxes
    //#pragma omp parallel for reduction(+:etot)
-   for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++)
-   {
+   for(int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++){
       int nIBox = s->boxes->nAtoms[iBox];
-
       // loop over neighbor boxes of iBox (some may be halo boxes)
-      for (int jTmp=0; jTmp<nNbrBoxes; jTmp++)
-      {
+      for(int jTmp=0; jTmp<nNbrBoxes; jTmp++) {
          int jBox = s->boxes->nbrBoxes[iBox][jTmp];
          int nJBox = s->boxes->nAtoms[jBox];
-
          // loop over atoms in iBox
-         for (int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++)
-         {
+         for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
             // loop over atoms in jBox
-            for (int jOff=MAXATOMS*jBox; jOff<(jBox*MAXATOMS+nJBox); jOff++)
-            {
-
+            for(int jOff=MAXATOMS*jBox; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
                real3 dr;
                real_t r2 = 0.0;
-               for (int k=0; k<3; k++)
-               {
+               for(int k=0; k<3; k++) {
                   dr[k]=s->atoms->r[iOff][k]-s->atoms->r[jOff][k];
                   r2+=dr[k]*dr[k];
                }
-
-               if(r2 <= rCut2 && r2 > 0.0)
-               {
-
+               if(r2 <= rCut2 && r2 > 0.0) {
                   real_t r = sqrt(r2);
-
                   real_t phiTmp, dPhi, rhoTmp, dRho;
                   interpolate(pot->phi, r, &phiTmp, &dPhi);
                   interpolate(pot->rho, r, &rhoTmp, &dRho);
-
-                  for (int k=0; k<3; k++)
-                  {
+                  for(int k=0; k<3; k++) {
                      s->atoms->f[iOff][k] -= dPhi*dr[k]/r;
                   }
-
                   // Calculate energy contribution
-                  s->atoms->U[iOff] += 0.5*phiTmp;
+                  //s->atoms->U[iOff] += 0.5*phiTmp;//never used
                   etot += 0.5*phiTmp;
-
                   // accumulate rhobar for each atom
                   pot->rhobar[iOff] += rhoTmp;
                }
@@ -302,8 +286,7 @@ int eamForce(SimFlat* s)
    // Compute Embedding Energy
    // loop over all local boxes
    //#pragma omp parallel for reduction(+:etot)
-   for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++)
-   {
+   for (int iBox=0; iBox<s->boxes->nLocalBoxes; iBox++) {
       int nIBox =  s->boxes->nAtoms[iBox];
 
       // loop over atoms in iBox
@@ -312,7 +295,7 @@ int eamForce(SimFlat* s)
          real_t fEmbed, dfEmbed;
          interpolate(pot->f, pot->rhobar[iOff], &fEmbed, &dfEmbed);
          pot->dfEmbed[iOff] = dfEmbed; // save derivative for halo exchange
-         s->atoms->U[iOff] += fEmbed;
+         //s->atoms->U[iOff] += fEmbed;//never used
          etot += fEmbed;
       }
    }

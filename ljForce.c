@@ -167,6 +167,10 @@ void boxForce(int iBox, SimFlat *s)
     xyz[1] = tmpBox % gridSize[1];
     xyz[2] = tmpBox / gridSize[1];
 
+    //Offset is needed because halo cells are not used.
+    //Instead of copying the local cell corresponding to a halo neighbor into the halo, 
+    //  the logic is changed to look at the local cell, and offset the position of the atoms in
+    //  place, without altering the local cell being read from.
     real3 offset[3][3][3];
 
     int ijk[3];
@@ -209,7 +213,7 @@ void boxForce(int iBox, SimFlat *s)
                             r2 = 1.0/r2;
                             real_t r6 = s6 * (r2*r2*r2);
                             real_t eLocal = r6 * (r6 - 1.0) - eShift;
-                            s->atoms->U[iOff] += 0.5*eLocal;
+                            //s->atoms->U[iOff] += 0.5*eLocal;
                             ePot += 0.5*eLocal;
 
                             real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
@@ -229,7 +233,8 @@ int ljForce(SimFlat* s)
 {
     real3  *atomF = s->atoms->f;
     real3  *atomR = s->atoms->r;
-    real_t *atomU = s->atoms->U;
+    //real_t *atomU = s->atoms->U;
+    real_t *atomU = s->atoms->f[0];
     int dep[9];
 
     for(int z=0; z < s->boxes->gridSize[2]; z++) {
@@ -245,7 +250,7 @@ int ljForce(SimFlat* s)
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
                     for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
                         zeroReal3(s->atoms->f[ii]);
-                        s->atoms->U[ii] = 0.;
+                        //s->atoms->U[ii] = 0.;
                     }
                     boxForce(iBox, s);
                 }

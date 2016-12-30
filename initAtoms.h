@@ -22,7 +22,7 @@ typedef struct AtomsSt
    real3*  r;     //!< positions
    real3*  p;     //!< momenta of atoms
    real3*  f;     //!< forces 
-   real_t* U;     //!< potential energy per atom
+//   real_t* U;     //!< potential energy per atom
 } Atoms;
 
 

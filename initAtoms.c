@@ -33,7 +33,7 @@ Atoms* initAtoms(LinkCell* boxes)
     atoms->r =        (real3*) comdMalloc(maxTotalAtoms*sizeof(real3));
     atoms->p =        (real3*) comdMalloc(maxTotalAtoms*sizeof(real3));
     atoms->f =        (real3*) comdMalloc(maxTotalAtoms*sizeof(real3));
-    atoms->U =        (real_t*)comdMalloc(maxTotalAtoms*sizeof(real_t));
+    //atoms->U =        (real_t*)comdMalloc(maxTotalAtoms*sizeof(real_t));
 
     atoms->nLocal = 0;
     atoms->nGlobal = 0;
@@ -44,7 +44,7 @@ Atoms* initAtoms(LinkCell* boxes)
         zeroReal3(atoms->r[iOff]);
         zeroReal3(atoms->p[iOff]);
         zeroReal3(atoms->f[iOff]);
-        atoms->U[iOff] = 0.;
+        //atoms->U[iOff] = 0.;
     }
 
     return atoms;
@@ -57,7 +57,7 @@ void destroyAtoms(Atoms *atoms)
     freeMe(atoms,r);
     freeMe(atoms,p);
     freeMe(atoms,f);
-    freeMe(atoms,U);
+    //freeMe(atoms,U);
     comdFree(atoms);
 }
 

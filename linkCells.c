@@ -331,7 +331,8 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
 {
     real3  *atomF = atoms->f;
     real3  *atomR = atoms->r;
-    real_t *atomU = atoms->U;
+    //real_t *atomU = atoms->U;
+    real_t *atomU = atoms->f[0];
     real3  *atomP = atoms->p;
     real3  *atomsBufferR = atomsBuffer->r;
 
@@ -427,7 +428,7 @@ void copyAtom(Atoms* in, Atoms* out, int inAtom, int inBox, int outAtom, int out
     memcpy(out->r[outOff], in->r[inOff], sizeof(real3));
     memcpy(out->p[outOff], in->p[inOff], sizeof(real3));
     memcpy(out->f[outOff], in->f[inOff], sizeof(real3));
-    memcpy(out->U+outOff,  in->U+inOff,  sizeof(real_t));
+    //memcpy(out->U+outOff,  in->U+inOff,  sizeof(real_t));
 }
 
 /// Get the index of the link cell that contains the specified
