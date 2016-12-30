@@ -15,12 +15,13 @@ DO_MPI = OFF
 ### specify paths to include files that the compiler can't find on its
 ### own.  If you need any -L or -l switches to get C standard libraries
 ### (such as -lm for the math library) put them in C_LIB.
-CC = icc
-CFLAGS = -std=c99 -fopenmp
+CC = icpc
+CFLAGS = -std=c++11 -fopenmp
 OPTFLAGS = -g -O3 -xHost
 #OPTFLAGS = -g -O3 -xMIC-AVX512
 INCLUDES = 
-C_LIB = -lm
+#C_LIB = -lm
+C_LIB =
 
 
 ### If you need to specify include paths, library paths, or link flags
@@ -44,7 +45,7 @@ OTHER_INCLUDE =
 # clear all suffixes
 .SUFFIXES:
 # list only those that we use 
-.SUFFIXES: .c .o
+.SUFFIXES: .cpp .o
 
 .PHONY: DEFAULT clean distclean depend
 
@@ -71,13 +72,13 @@ LDFLAGS += ${C_LIB} ${OTHER_LIB}
 CFLAGS  += ${OPTFLAGS} ${INCLUDES} ${OTHER_INCLUDE}
 
 
-SOURCES=$(wildcard *.c)
-OBJECTS=$(SOURCES:.c=.o)
+SOURCES=$(wildcard *.cpp)
+OBJECTS=$(SOURCES:.cpp=.o)
 
 
 DEFAULT: ${CoMD_EXE}
 
-%.o: %.c
+%.o: %.cpp
 	${CC} ${CFLAGS} -c $< -o $@
 
 ${CoMD_EXE}: ${BIN_DIR} CoMD_info.h ${OBJECTS} 

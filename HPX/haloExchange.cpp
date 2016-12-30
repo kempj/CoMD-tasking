@@ -156,7 +156,7 @@ HaloExchange* initAtomHaloExchange(Domain* domain, LinkCell* boxes)
     hh->unloadBuffer = unloadAtomsBuffer;
     hh->destroy = destroyAtomsExchange;
 
-    AtomExchangeParms* parms = comdMalloc(sizeof(AtomExchangeParms));
+    AtomExchangeParms* parms = (AtomExchangeParms*)comdMalloc(sizeof(AtomExchangeParms));
 
     parms->nCells[HALO_X_MINUS] = 2*(boxes->gridSize[1]+2)*(boxes->gridSize[2]+2);
     parms->nCells[HALO_Y_MINUS] = 2*(boxes->gridSize[0]+2)*(boxes->gridSize[2]+2);
@@ -170,7 +170,7 @@ HaloExchange* initAtomHaloExchange(Domain* domain, LinkCell* boxes)
 
     for (int ii=0; ii<6; ++ii)
     {
-        parms->pbcFactor[ii] = comdMalloc(3*sizeof(real_t));
+        parms->pbcFactor[ii] = (real_t*)comdMalloc(3*sizeof(real_t));
         for (int jj=0; jj<3; ++jj)
             parms->pbcFactor[ii][jj] = 0.0;
     }
