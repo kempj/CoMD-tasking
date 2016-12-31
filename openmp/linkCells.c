@@ -425,7 +425,9 @@ void copyAtom(Atoms* in, Atoms* out, int inAtom, int inBox, int outAtom, int out
     out->iSpecies[outOff] = in->iSpecies[inOff];
     memcpy(out->r[outOff], in->r[inOff], sizeof(real3));
     memcpy(out->p[outOff], in->p[inOff], sizeof(real3));
-    memcpy(out->f[outOff], in->f[inOff], sizeof(real3));
+    //FIXME: Is this the best place to zero this out?
+    //memcpy(out->f[outOff], in->f[inOff], sizeof(real3));
+    zeroReal3(out->f[outOff]);
 }
 
 /// Get the index of the link cell that contains the specified

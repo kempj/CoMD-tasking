@@ -247,6 +247,7 @@ int ljForce(SimFlat* s)
                 startTimer(computeForceTimer);
                 real_t ePot = 0;
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
+                    //TODO: remove this once tested with new copyatom
                     for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
                         zeroReal3(s->atoms->f[ii]);
                     }
@@ -271,3 +272,102 @@ int ljForce(SimFlat* s)
     return 0;
 }
 
+real_t boxForcePart(int iBox, int realJBox, SimFlat *s, real3 offset)
+{
+    LjPotential* pot = (LjPotential *) s->pot;
+    const real_t rCut = pot->cutoff;
+    const real_t sigma = pot->sigma;
+    const real_t epsilon = pot->epsilon;
+    const real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
+    const real_t rCut2 = rCut*rCut;
+    const real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
+    const real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
+
+    int nIBox = s->boxes->nAtoms[iBox];
+    real_t ePot = 0;
+
+    int jBox = getLocalHaloTuple(s->boxes, realJBox);
+    int nJBox = s->boxes->nAtoms[jBox];
+    for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
+        for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
+            real3 dr;
+            real_t r2 = 0.0;
+            for(int m=0; m<3; m++) {
+                dr[m] = s->atoms->r[iOff][m] - (s->atoms->r[jOff][m] + offset[m]);
+                r2+=dr[m]*dr[m];
+            }
+            if(r2<=rCut2 && r2>0.0) {
+                r2 = 1.0/r2;
+                real_t r6 = s6 * (r2*r2*r2);
+                real_t eLocal = r6 * (r6 - 1.0) - eShift;
+                ePot += 0.5*eLocal;
+
+                real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
+                for (int m=0; m<3; m++) {
+                    s->atoms->f[iOff][m] -= dr[m]*fr;
+                }
+            }
+        }
+    }
+    return ePot;
+}
+
+int ljForcePartial(SimFlat *s)
+{
+    int *gridSize = s->boxes->gridSize;
+    real3  *atomF = s->atoms->f;
+    real3  *atomR = s->atoms->r;
+    int dep[4];
+    //TODO: Handle odd sized arrays
+    int Zend = gridSize[2] - (gridSize[2] % 2);
+    int Yend = gridSize[1] - (gridSize[1] % 2);
+
+    for(int z=0; z < Zend; z += 2) {
+        dep[(z%2)*2] = (z)*gridSize[1]*gridSize[0];
+        for(int y=0;y < Yend; y += 2) {
+            dep[(z%2)*2+y] = z*gridSize[1]*gridSize[0] + y*gridSize[0];
+            //for(int i=0; i < 2; i++) {
+            //    for(int j=0; j < 2; j++) {
+            //        dep[i*2+j] = (z+i)*gridSize[1]*gridSize[0] + (y+j)*gridSize[0];
+            //    }
+            //}
+#pragma omp task depend(out: reductionArray[dep[0]], \
+                             atomF[dep[0]*MAXATOMS], atomF[dep[1]*MAXATOMS],\
+                             atomF[dep[1]*MAXATOMS], atomF[dep[3]*MAXATOMS])\
+                 depend( in: atomR[dep[0]*MAXATOMS], atomR[dep[1]*MAXATOMS],\
+                             atomR[dep[2]*MAXATOMS], atomR[dep[3]*MAXATOMS])
+            {
+                startTimer(computeForceTimer);
+                real_t ePot = 0;
+                real3 offset = {0,0,0};
+                for(int i=0; i<gridSize[0]; i++) {
+                    //current row
+                    for(int j=1; j<4; j++) {
+                        ePot += boxForcePart(dep[0], dep[j], s, offset);
+                    }
+                    //each element in current row with each element in next row.
+                    for(int j=0; j<4; j++) {
+                        for(int k=0; k<4; k++) {
+                            ePot += boxForcePart(dep[j], dep[k]+i, s, offset);
+                        }
+                    }
+                }
+
+                reductionArray[dep[0]] = ePot;
+                stopTimer(computeForceTimer);
+            }
+        }
+    }
+    ompReduceReal(reductionArray, s->boxes->nLocalBoxes, gridSize[0]);//TODO: remove extra tasks
+
+    real_t *ePotential = &(s->ePotential);
+#pragma omp task depend(inout: reductionArray[0]) depend(out: ePotential[0])
+    {
+        startTimer(ePotReductionTimer);
+        *ePotential = reductionArray[0]*4.0*((LjPotential*)(s->pot))->epsilon;
+        reductionArray[0] = 0;
+        stopTimer(ePotReductionTimer);
+    }
+
+    return 0;
+}
