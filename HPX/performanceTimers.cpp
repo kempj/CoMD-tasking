@@ -97,9 +97,9 @@ typedef struct TimersSt
 Timers **perfTimer;
 
 void initPerfTimers(int numThreads) {
-    perfTimer = calloc(numThreads, sizeof(Timers*));
+    perfTimer = (Timers**)calloc(numThreads, sizeof(Timers*));
     for(int i=0; i<numThreads; i++) {
-        perfTimer[i] = calloc(numberOfTimers, sizeof(Timers));
+        perfTimer[i] = (Timers*)calloc(numberOfTimers, sizeof(Timers));
     }
 }
 

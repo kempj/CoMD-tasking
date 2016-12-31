@@ -83,7 +83,7 @@ static void copyAtom(Atoms* in, Atoms* out, int iAtom, int iBox, int jAtom, int 
 LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
 {
     assert(domain);
-    LinkCell* ll = comdMalloc(sizeof(LinkCell));
+    LinkCell* ll = (LinkCell*)comdMalloc(sizeof(LinkCell));
 
     for (int i = 0; i < 3; i++) {
         ll->localMin[i] = domain->localMin[i];
@@ -101,16 +101,16 @@ LinkCell* initLinkCells(const Domain* domain, real_t cutoff)
 
     ll->nTotalBoxes = ll->nLocalBoxes + ll->nHaloBoxes;
 
-    ll->nAtoms = comdMalloc(ll->nLocalBoxes*sizeof(int));
+    ll->nAtoms = (int*)comdMalloc(ll->nLocalBoxes*sizeof(int));
     for (int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
         ll->nAtoms[iBox] = 0;
     }
 
     assert ( (ll->gridSize[0] >= 2) && (ll->gridSize[1] >= 2) && (ll->gridSize[2] >= 2) );
 
-    ll->nbrBoxes = comdMalloc(ll->nLocalBoxes*sizeof(int*));
+    ll->nbrBoxes = (int**)comdMalloc(ll->nLocalBoxes*sizeof(int*));
     for (int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {
-        ll->nbrBoxes[iBox] = comdMalloc(27*sizeof(int));
+        ll->nbrBoxes[iBox] = (int*)comdMalloc(27*sizeof(int));
     }
 
     for(int iBox=0; iBox<ll->nLocalBoxes; ++iBox) {

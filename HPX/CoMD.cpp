@@ -180,7 +180,7 @@ int main(int argc, char** argv)
 /// must be initialized before the atoms.
 SimFlat* initSimulation(Command cmd)
 {
-    sim = comdMalloc(sizeof(SimFlat));
+    sim = (SimFlat*)comdMalloc(sizeof(SimFlat));
     sim->nSteps = cmd.nSteps;
     sim->printRate = cmd.printRate;
     sim->dt = cmd.dt;
@@ -217,9 +217,9 @@ SimFlat* initSimulation(Command cmd)
 
     createFccLattice(cmd.nx, cmd.ny, cmd.nz, latticeConstant, sim);
 
-    reductionArray = comdCalloc(sim->boxes->nLocalBoxes , sizeof(double));
-    reductionArrayInt  = comdCalloc(sim->boxes->nLocalBoxes , sizeof(int));
-    r3ReductionArray = comdCalloc(sim->boxes->nLocalBoxes , sizeof(real3));
+    reductionArray = (double*)comdCalloc(sim->boxes->nLocalBoxes , sizeof(double));
+    reductionArrayInt  = (int*)comdCalloc(sim->boxes->nLocalBoxes , sizeof(int));
+    r3ReductionArray = (real3*)comdCalloc(sim->boxes->nLocalBoxes , sizeof(real3));
 
     setTemperature(cmd.temperature);//out: atomP, vcm reduction, eKinetic
     randomDisplacements(cmd.initialDelta);//inout atomR, in atomP
@@ -291,7 +291,7 @@ BasePotential* initPotential(
 
 SpeciesData* initSpecies(BasePotential* pot)
 {
-    SpeciesData* species = comdMalloc(sizeof(SpeciesData));
+    SpeciesData* species = (SpeciesData*)comdMalloc(sizeof(SpeciesData));
 
     strcpy(species->name, pot->name);
     species->atomicNo = pot->atomicNo;
@@ -302,7 +302,7 @@ SpeciesData* initSpecies(BasePotential* pot)
 
 Validate* initValidate(SimFlat* sim)
 {
-    Validate* val = comdMalloc(sizeof(Validate));
+    Validate* val = (Validate*)comdMalloc(sizeof(Validate));
     val->eTot0 = (sim->ePotential + sim->eKinetic) / sim->atoms->nGlobal;
     val->nAtoms0 = sim->atoms->nGlobal;
 

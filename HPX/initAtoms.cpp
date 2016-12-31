@@ -18,14 +18,14 @@
 
 extern struct SimFlatSt* sim;
 extern real3 *r3ReductionArray;
-double *reductionArray;
+extern double *reductionArray;
 
 real_t vInit[3] = {0., 0., 0.};
 
 
 Atoms* initAtoms(LinkCell* boxes)
 {
-    Atoms* atoms = comdMalloc(sizeof(Atoms));
+    Atoms* atoms = (Atoms*)comdMalloc(sizeof(Atoms));
     int maxTotalAtoms = MAXATOMS*boxes->nTotalBoxes;
 
     atoms->gid =      (int*)   comdMalloc(maxTotalAtoms*sizeof(int));

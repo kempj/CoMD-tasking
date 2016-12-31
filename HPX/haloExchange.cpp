@@ -93,7 +93,7 @@ ForceMsg;
 static HaloExchange* initHaloExchange(Domain* domain);
 static void exchangeData(HaloExchange* haloExchange, void* data, int iAxis);
 
-static int* mkAtomCellList(LinkCell* boxes, enum HaloFaceOrder iFace, const int nCells);
+static int* mkAtomCellList(LinkCell* boxes, int iFace, const int nCells);
 static int loadAtomsBuffer(void* vparms, void* data, int face, char* charBuf);
 static void unloadAtomsBuffer(void* vparms, void* data, int face, int bufSize, char* charBuf);
 static void destroyAtomsExchange(void* vparms);
@@ -217,7 +217,7 @@ HaloExchange* initForceHaloExchange(Domain* domain, LinkCell* boxes)
     maxSize = MAX(size1, size2);
     hh->bufCapacity = (maxSize)*MAXATOMS*sizeof(ForceMsg);
 
-    ForceExchangeParms* parms = comdMalloc(sizeof(ForceExchangeParms));
+    ForceExchangeParms* parms = (ForceExchangeParms*)comdMalloc(sizeof(ForceExchangeParms));
 
     parms->nCells[HALO_X_MINUS] = (boxes->gridSize[1]  )*(boxes->gridSize[2]  );
     parms->nCells[HALO_Y_MINUS] = (boxes->gridSize[0]+2)*(boxes->gridSize[2]  );
@@ -255,7 +255,7 @@ void haloExchange(HaloExchange* haloExchange, void* data)
 /// Base class constructor.
 HaloExchange* initHaloExchange(Domain* domain)
 {
-    HaloExchange* hh = comdMalloc(sizeof(HaloExchange));
+    HaloExchange* hh = (HaloExchange*)comdMalloc(sizeof(HaloExchange));
 
     // Rank of neighbor task for each face.
     hh->nbrRank[HALO_X_MINUS] = processorNum(domain, -1,  0,  0);
@@ -279,13 +279,13 @@ HaloExchange* initHaloExchange(Domain* domain)
 ///                       unload functions
 void exchangeData(HaloExchange* haloExchange, void* data, int iAxis)
 {
-    enum HaloFaceOrder faceM = 2*iAxis;
-    enum HaloFaceOrder faceP = faceM+1;
+    int faceM = 2*iAxis;
+    int faceP = faceM+1;
 
-    char* sendBufM = comdMalloc(haloExchange->bufCapacity);
-    char* sendBufP = comdMalloc(haloExchange->bufCapacity);
-    char* recvBufM = comdMalloc(haloExchange->bufCapacity);
-    char* recvBufP = comdMalloc(haloExchange->bufCapacity);
+    char* sendBufM = (char*)comdMalloc(haloExchange->bufCapacity);
+    char* sendBufP = (char*)comdMalloc(haloExchange->bufCapacity);
+    char* recvBufM = (char*)comdMalloc(haloExchange->bufCapacity);
+    char* recvBufP = (char*)comdMalloc(haloExchange->bufCapacity);
 
     int nSendM = haloExchange->loadBuffer(haloExchange->parms, data, faceM, sendBufM);
     int nSendP = haloExchange->loadBuffer(haloExchange->parms, data, faceP, sendBufP);
@@ -327,9 +327,9 @@ void exchangeData(HaloExchange* haloExchange, void* data, int iAxis)
 ///                    consistency check.
 /// \return The list of cells to send.  Caller is responsible to free
 /// the list.
-int* mkAtomCellList(LinkCell* boxes, enum HaloFaceOrder iFace, const int nCells)
+int* mkAtomCellList(LinkCell* boxes, int iFace, const int nCells)
 {
-    int* list = comdMalloc(nCells*sizeof(int));
+    int* list = (int*)comdMalloc(nCells*sizeof(int));
     int xBegin = -1;
     int xEnd   = boxes->gridSize[0]+1;
     int yBegin = -1;
@@ -447,7 +447,7 @@ void destroyAtomsExchange(void* vparms)
 /// coordinates of link cells.
 int* mkForceSendCellList(LinkCell* boxes, int face, int nCells)
 {
-    int* list = comdMalloc(nCells*sizeof(int));
+    int* list = (int*)comdMalloc(nCells*sizeof(int));
     int xBegin, xEnd, yBegin, yEnd, zBegin, zEnd;
 
     int nx = boxes->gridSize[0];
@@ -496,7 +496,7 @@ int* mkForceSendCellList(LinkCell* boxes, int face, int nCells)
 /// coordinates of link cells.
 int* mkForceRecvCellList(LinkCell* boxes, int face, int nCells)
 {
-    int* list = comdMalloc(nCells*sizeof(int));
+    int* list = (int*)comdMalloc(nCells*sizeof(int));
     int xBegin, xEnd, yBegin, yEnd, zBegin, zEnd;
 
     int nx = boxes->gridSize[0];
