@@ -280,12 +280,11 @@ int ljForce(SimFlat* s)
     return 0;
 }
 
-//real_t boxForcePart(SimFlat *s, int iBox, int jBox, real3 offset)
-real_t boxForcePart(SimFlat *s, int iBox, int jBox, real_t offX, real_t offY, real_t offZ)
+real_t boxForcePart(SimFlat *s, int iBox, real3 iOffset, int jBox, real3 jOffset)
 {
-    real3 offset = {offX, offY, offZ};
     int nIBox = s->boxes->nAtoms[iBox];
     real_t ePot = 0;
+    //TODO: I think this still needs to be changed to write force to both atoms.
 
     int nJBox = s->boxes->nAtoms[jBox];
     for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
@@ -293,7 +292,7 @@ real_t boxForcePart(SimFlat *s, int iBox, int jBox, real_t offX, real_t offY, re
             real3 dr;
             real_t r2 = 0.0;
             for(int m=0; m<3; m++) {
-                dr[m] = s->atoms->r[iOff][m] - (s->atoms->r[jOff][m] + offset[m]);
+                dr[m] = (s->atoms->r[iOff][m] + iOffset[m])- (s->atoms->r[jOff][m] + jOffset[m]);
                 r2+=dr[m]*dr[m];
             }
             if(r2<=rCut2 && r2>0.0) {
@@ -312,40 +311,58 @@ real_t boxForcePart(SimFlat *s, int iBox, int jBox, real_t offX, real_t offY, re
     return ePot;
 }
 
-void clusterForce(SimFlat *s, int dep[4], real_t offsetY, real_t offsetZ) {
-
+//This might be better to send iBox and then an int[4] offset
+void clusterForce(SimFlat *s, int dep[4], real_t offsetY, real_t offsetZ)
+{
     real3  *atomF = s->atoms->f;
     real3  *atomR = s->atoms->r;
 
-#pragma omp task depend(out: reductionArray[dep[0]], \
-                             atomF[dep[0]*MAXATOMS], atomF[dep[1]*MAXATOMS], \
-                             atomF[dep[2]*MAXATOMS], atomF[dep[3]*MAXATOMS]) \
-                 depend( in: atomR[dep[0]*MAXATOMS], atomR[dep[1]*MAXATOMS], \
-                             atomR[dep[2]*MAXATOMS], atomR[dep[3]*MAXATOMS])
+#pragma omp task depend(inout: reductionArray[dep[0]]) \
+                 depend(  out: atomF[dep[0]*MAXATOMS], atomF[dep[1]*MAXATOMS], \
+                               atomF[dep[2]*MAXATOMS], atomF[dep[3]*MAXATOMS]) \
+                 depend(   in: atomR[dep[0]*MAXATOMS], atomR[dep[1]*MAXATOMS], \
+                               atomR[dep[2]*MAXATOMS], atomR[dep[3]*MAXATOMS])
     {
         startTimer(computeForceTimer);
-        //TODO: boxForcePart also assumes the first block is local.
-        //  This needs to change before this funcion works properly.
 
         real_t ePot = 0;
-        int offsetX =  s->boxes->localMax[0];
+        real3 offset[4];
+        for(int i=0; i < 4; i++)
+            zeroReal3(offset[i]);
+        offset[1][1] = offsetY;
+        offset[2][2] = offsetZ;
+        offset[3][1] = offsetY;
+        offset[3][2] = offsetZ;
+
+        int offsetX = s->boxes->localMax[0];
         int sizeX = s->boxes->gridSize[0];
+
+        //Do I assume dep[0] is local?
+        // as long as we shift correctly we can.
         for(int i=0; i<sizeX-1; i++) {
-            ePot += boxForcePart(s, dep[0]+i, dep[1] + i, 0, offsetY, 0);
-            ePot += boxForcePart(s, dep[0]+i, dep[2] + i, 0, 0, offsetZ);
-            ePot += boxForcePart(s, dep[0]+i, dep[3] + i, 0, offsetY, offsetZ);
+            //row i with row i
+            for(int j=1; j<4; j++) {
+                ePot += boxForcePart(s, dep[0]+i, offset[0], dep[j] + i, offset[j]);
+            }
+            //row i with row i+1
             for(int j=0; j<4; j++) {
                 for(int k=0; k<4; k++) {
-                    ePot += boxForcePart(s, dep[j]+i, dep[k]+i, offset);
+                    ePot += boxForcePart(s, dep[j]+i, offset[j], dep[k]+i, offset[k]);
                 }
             }
         }
+
+        //last row with last row
         for(int j=1; j<4; j++) {
-            ePot += boxForcePart(s, dep[0]+sizeX-1, dep[j] + sizeX-1, offset);
+            ePot += boxForcePart(s, dep[0]+sizeX-1, offset[0], dep[j] + sizeX-1, offset[j]);
         }
+        real3 tmpOffset = {offsetX,0,0};
+        //last row with first row
         for(int j=0; j<4; j++) {
             for(int k=0; k<4; k++) {
-                ePot += boxForcePart(s, dep[j]+sizeX-1, dep[k], offset);
+                tmpOffset[1] = offset[k][1];
+                tmpOffset[2] = offset[k][2];
+                ePot += boxForcePart(s, dep[j]+sizeX-1, offset[j], dep[k], tmpOffset);
             }
         }
         reductionArray[dep[0]] += ePot;
