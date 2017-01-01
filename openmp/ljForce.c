@@ -272,7 +272,7 @@ int ljForce(SimFlat* s)
     return 0;
 }
 
-real_t boxForcePart(int iBox, int realJBox, SimFlat *s, real3 offset)
+real_t boxForcePart(int iBox, int jBox, SimFlat *s, real3 offset)
 {
     LjPotential* pot = (LjPotential *) s->pot;
     const real_t rCut = pot->cutoff;
@@ -286,7 +286,6 @@ real_t boxForcePart(int iBox, int realJBox, SimFlat *s, real3 offset)
     int nIBox = s->boxes->nAtoms[iBox];
     real_t ePot = 0;
 
-    int jBox = getLocalHaloTuple(s->boxes, realJBox);
     int nJBox = s->boxes->nAtoms[jBox];
     for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
         for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
@@ -312,7 +311,7 @@ real_t boxForcePart(int iBox, int realJBox, SimFlat *s, real3 offset)
     return ePot;
 }
 
-void clusterForce(SimFlat *s, int dep[4], real3 offset) {
+void clusterForce(SimFlat *s, int dep[4], real3 offsetIn) {
 
     real3  *atomF = s->atoms->f;
     real3  *atomR = s->atoms->r;
@@ -324,18 +323,32 @@ void clusterForce(SimFlat *s, int dep[4], real3 offset) {
                              atomR[dep[2]*MAXATOMS], atomR[dep[3]*MAXATOMS])
     {
         startTimer(computeForceTimer);
+        real3 offset;
+        offset[1] = offsetIn[1];
+        offset[2] = offsetIn[2];
 
-        int *gridSize = s->boxes->gridSize;
+        //TODO: offset is incorrect
+        // if offset[1] != 0, then deps 1 and 3 are affected
+        // if offset[2] != 0, then deps 2 and 3 are affected
+        int sizeX = s->boxes->gridSize[0];
         real_t ePot = 0;
-        for(int i=0; i<gridSize[0]; i++) {
+        for(int i=0; i<sizeX-1; i++) {
             for(int j=1; j<4; j++) {
                 ePot += boxForcePart(dep[0]+i, dep[j] + i, s, offset);
             }
             for(int j=0; j<4; j++) {
                 for(int k=0; k<4; k++) {
-                    int nextRow = (i+1)%gridSize[0];
+                    int nextRow = (i+1)%sizeX;
                     ePot += boxForcePart(dep[j]+i, dep[k]+nextRow, s, offset);
                 }
+            }
+        }
+        for(int j=1; j<4; j++) {
+            ePot += boxForcePart(dep[0]+sizeX-1, dep[j] + sizeX-1, s, offset);
+        }
+        for(int j=0; j<4; j++) {
+            for(int k=0; k<4; k++) {
+                ePot += boxForcePart(dep[j]+sizeX-1, dep[k], s, offset);
             }
         }
         reductionArray[dep[0]] = ePot;
@@ -350,23 +363,26 @@ int ljForcePartial(SimFlat *s)
     int dep[4];
     int Zend = gridSize[2] - (gridSize[2] % 2);
     int Yend = gridSize[1] - (gridSize[1] % 2);
+    int sizeZ = gridSize[1]*gridSize[0];
+    int sizeY = gridSize[0];
 
     real3 offset;
+    //TODO: remember this needs to be done 4 times, shifted 
     for(int z=0; z < Zend; z += 2) {
         zeroReal3(offset);
         for(int y=0; y < Yend; y += 2) {
-            dep[0] = (z+0)*gridSize[1]*gridSize[0] + (y+0)*gridSize[0];
-            dep[1] = (z+0)*gridSize[1]*gridSize[0] + (y+1)*gridSize[0];
-            dep[2] = (z+1)*gridSize[1]*gridSize[0] + (y+0)*gridSize[0];
-            dep[3] = (z+1)*gridSize[1]*gridSize[0] + (y+1)*gridSize[0];
+            dep[0] = (z+0)*sizeZ + (y+0)*sizeY;
+            dep[1] = (z+0)*sizeZ + (y+1)*sizeY;
+            dep[2] = (z+1)*sizeZ + (y+0)*sizeY;
+            dep[3] = (z+1)*sizeZ + (y+1)*sizeY;
 
             clusterForce(s, dep, offset);
         }
         if(Yend != gridSize[1]) {
-            dep[0] = (z+0)*gridSize[1]*gridSize[0] + (Yend)*gridSize[0];
-            dep[1] = (z+0)*gridSize[1]*gridSize[0];
-            dep[2] = (z+1)*gridSize[1]*gridSize[0] + (Yend)*gridSize[0];
-            dep[3] = (z+1)*gridSize[1]*gridSize[0];
+            dep[0] = (z+0)*sizeZ + (Yend)*sizeY;
+            dep[1] = (z+0)*sizeZ;
+            dep[2] = (z+1)*sizeZ + (Yend)*sizeY;
+            dep[3] = (z+1)*sizeZ;
             offset[1] = s->boxes->localMax[1];
 
             clusterForce(s, dep, offset);
@@ -376,16 +392,16 @@ int ljForcePartial(SimFlat *s)
         zeroReal3(offset);
         offset[2] = s->boxes->localMax[2];
         for(int y=0; y < Yend; y += 2) {
-            dep[0] = Zend*gridSize[1]*gridSize[0] + (y+0)*gridSize[0];
-            dep[1] = Zend*gridSize[1]*gridSize[0] + (y+1)*gridSize[0];
-            dep[2] =      gridSize[1]*gridSize[0] + (y+0)*gridSize[0];
-            dep[3] =      gridSize[1]*gridSize[0] + (y+1)*gridSize[0];
+            dep[0] = Zend*sizeZ + (y+0)*sizeY;
+            dep[1] = Zend*sizeZ + (y+1)*sizeY;
+            dep[2] =      sizeZ + (y+0)*sizeY;
+            dep[3] =      sizeZ + (y+1)*sizeY;
             clusterForce(s, dep, offset);
         }
         if(Yend != gridSize[1]) {
-            dep[0] = Zend*gridSize[1]*gridSize[0] + (Yend)*gridSize[0];
-            dep[1] = Zend*gridSize[1]*gridSize[0];
-            dep[2] = 0                            + (Yend)*gridSize[0];
+            dep[0] = Zend*sizeZ + (Yend)*sizeY;
+            dep[1] = Zend*sizeZ;
+            dep[2] = 0          + (Yend)*sizeY;
             dep[3] = 0;
             offset[1] = s->boxes->localMax[1];
 
