@@ -284,7 +284,6 @@ real_t boxForcePart(SimFlat *s, int iBox, real3 iOffset, int jBox, real3 jOffset
 {
     int nIBox = s->boxes->nAtoms[iBox];
     real_t ePot = 0;
-    //TODO: I think this still needs to be changed to write force to both atoms.
 
     int nJBox = s->boxes->nAtoms[jBox];
     for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
@@ -299,11 +298,14 @@ real_t boxForcePart(SimFlat *s, int iBox, real3 iOffset, int jBox, real3 jOffset
                 r2 = 1.0/r2;
                 real_t r6 = s6 * (r2*r2*r2);
                 real_t eLocal = r6 * (r6 - 1.0) - eShift;
-                ePot += 0.5*eLocal;
+                //Changed to account for any pair of cells only interacting once.
+                //ePot += 0.5*eLocal;
+                ePot += eLocal;
 
                 real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
                 for (int m=0; m<3; m++) {
                     s->atoms->f[iOff][m] -= dr[m]*fr;
+                    s->atoms->f[jOff][m] -= dr[m]*fr;
                 }
             }
         }
@@ -312,6 +314,7 @@ real_t boxForcePart(SimFlat *s, int iBox, real3 iOffset, int jBox, real3 jOffset
 }
 
 //This might be better to send iBox and then an int[4] offset
+// as long as we shift correctly we can assume dep[0] is local.
 void clusterForce(SimFlat *s, int dep[4], real_t offsetY, real_t offsetZ)
 {
     real3  *atomF = s->atoms->f;
@@ -337,8 +340,6 @@ void clusterForce(SimFlat *s, int dep[4], real_t offsetY, real_t offsetZ)
         int offsetX = s->boxes->localMax[0];
         int sizeX = s->boxes->gridSize[0];
 
-        //Do I assume dep[0] is local?
-        // as long as we shift correctly we can.
         for(int i=0; i<sizeX-1; i++) {
             //row i with row i
             for(int j=1; j<4; j++) {
