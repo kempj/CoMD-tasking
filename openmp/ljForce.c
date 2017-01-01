@@ -100,6 +100,14 @@ static void ljPrint(FILE* file, BasePotential* pot);
 
 extern double *reductionArray;
 
+real_t rCut;
+real_t sigma;
+real_t epsilon;
+real_t s6;
+real_t rCut2;
+real_t rCut6;
+real_t eShift;
+
 void ljDestroy(BasePotential** inppot)
 {
     if ( ! inppot ) return;
@@ -128,6 +136,14 @@ BasePotential* initLjPot(void)
 
     strcpy(pot->name, "Cu");
     pot->atomicNo = 29;
+    
+    rCut = pot->cutoff;
+    sigma = pot->sigma;
+    epsilon = pot->epsilon;
+    s6 = sigma*sigma*sigma*sigma*sigma*sigma;
+    rCut2 = rCut*rCut;
+    rCut6 = s6 / (rCut2*rCut2*rCut2);
+    eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
 
     return (BasePotential*) pot;
 }
@@ -152,14 +168,14 @@ real_t boxForce(int iBox, SimFlat *s)
 {
     const int* gridSize = s->boxes->gridSize;
     const real_t* localMax = s->boxes->localMax;
-    LjPotential* pot = (LjPotential *) s->pot;
-    const real_t rCut = pot->cutoff;
-    const real_t sigma = pot->sigma;
-    const real_t epsilon = pot->epsilon;
-    const real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
-    const real_t rCut2 = rCut*rCut;
-    const real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
-    const real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
+    //LjPotential* pot = (LjPotential *) s->pot;
+    //const real_t rCut = pot->cutoff;
+    //const real_t sigma = pot->sigma;
+    //const real_t epsilon = pot->epsilon;
+    //const real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
+    //const real_t rCut2 = rCut*rCut;
+    //const real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
+    //const real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
 
     int xyz[3];
     xyz[0] = iBox % gridSize[0];
@@ -274,15 +290,6 @@ int ljForce(SimFlat* s)
 
 real_t boxForcePart(int iBox, int jBox, SimFlat *s, real3 offset)
 {
-    LjPotential* pot = (LjPotential *) s->pot;
-    const real_t rCut = pot->cutoff;
-    const real_t sigma = pot->sigma;
-    const real_t epsilon = pot->epsilon;
-    const real_t s6 = sigma*sigma*sigma*sigma*sigma*sigma;
-    const real_t rCut2 = rCut*rCut;
-    const real_t rCut6 = s6 / (rCut2*rCut2*rCut2);
-    const real_t eShift = POT_SHIFT * rCut6 * (rCut6 - 1.0);
-
     int nIBox = s->boxes->nAtoms[iBox];
     real_t ePot = 0;
 
@@ -317,15 +324,16 @@ void clusterForce(SimFlat *s, int dep[4], real3 offsetIn) {
     real3  *atomR = s->atoms->r;
 
 #pragma omp task depend(out: reductionArray[dep[0]], \
-                             atomF[dep[0]*MAXATOMS], atomF[dep[1]*MAXATOMS],\
-                             atomF[dep[1]*MAXATOMS], atomF[dep[3]*MAXATOMS])\
-                 depend( in: atomR[dep[0]*MAXATOMS], atomR[dep[1]*MAXATOMS],\
+                             atomF[dep[0]*MAXATOMS], atomF[dep[1]*MAXATOMS], \
+                             atomF[dep[2]*MAXATOMS], atomF[dep[3]*MAXATOMS]) \
+                 depend( in: atomR[dep[0]*MAXATOMS], atomR[dep[1]*MAXATOMS], \
                              atomR[dep[2]*MAXATOMS], atomR[dep[3]*MAXATOMS])
     {
         startTimer(computeForceTimer);
         real3 offset;
         offset[1] = offsetIn[1];
         offset[2] = offsetIn[2];
+        //TODO: boxForcePart also assumes the first block is local.
 
         //TODO: offset is incorrect
         // if offset[1] != 0, then deps 1 and 3 are affected
