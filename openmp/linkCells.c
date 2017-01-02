@@ -358,9 +358,13 @@ void updateLinkCells(LinkCell* boxes, LinkCell* boxesBuffer, Atoms* atoms, Atoms
                                 for(int i=0; i<3; i++) {
                                     tempPosition[i] = atoms->r[neighborBox*MAXATOMS + atomNum][i];
                                     if(tempPosition[i] >= boxes->localMax[i]) {
+                                        //printf("for box %d tempPosition[%d] from %f", iBox, i, tempPosition[i]);
                                         tempPosition[i] -= boxes->localMax[i];
+                                        //printf(" - %f to %f\n", boxes->localMax[i], tempPosition[i]);
                                     } else if(tempPosition[i] <= boxes->localMin[i]) {
+                                        //printf("for box %d tempPosition[%d] from %f", iBox, i, tempPosition[i]);
                                         tempPosition[i] += boxes->localMax[i];
+                                        //printf(" + %f to %f\n", boxes->localMax[i], tempPosition[i]);
                                     }
                                 }
                                 if(iBox == getBoxFromCoord(boxes, tempPosition)) {

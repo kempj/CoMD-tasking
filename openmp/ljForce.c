@@ -257,10 +257,6 @@ int ljForce(SimFlat* s)
                 startTimer(computeForceTimer);
                 real_t ePot = 0;
                 for(int iBox=rowBox; iBox < rowBox + s->boxes->gridSize[0]; iBox++) {
-                    //TODO: remove this once tested with new copyatom
-                    for(int ii=iBox*MAXATOMS; ii<(iBox+1)*MAXATOMS;ii++) {
-                        zeroReal3(s->atoms->f[ii]);
-                    }
                     ePot += boxForce(iBox, s);
                 }
                 reductionArray[rowBox] = ePot;
@@ -400,9 +396,9 @@ void clusterForce(SimFlat *s, int y, int z)
             }
         }
         reductionArray[dep[0]] += ePot;
-        reductionArray[dep[1]] = 0;
-        reductionArray[dep[2]] = 0;
-        reductionArray[dep[3]] = 0;
+        //reductionArray[dep[1]] = 0;
+        //reductionArray[dep[2]] = 0;
+        //reductionArray[dep[3]] = 0;
 
         stopTimer(computeForceTimer);
     }
@@ -434,7 +430,7 @@ int ljForcePartial(SimFlat *s)
             }
         }
     }
-    ompReduceReal(reductionArray, s->boxes->nLocalBoxes, gridSize[0]);//TODO: remove extra tasks for 2x2 blocks
+    ompReduceReal(reductionArray, s->boxes->nLocalBoxes, gridSize[0]);
 
     real_t *ePotential = &(s->ePotential);
 #pragma omp task depend(inout: reductionArray[0]) depend(out: ePotential[0])

@@ -17,6 +17,7 @@ static void advancePosition(SimFlat* s, real_t dt);
 extern double *reductionArray;
 extern int *reductionArrayInt;
 extern double globalEnergy;
+extern SimFlat* sim;
 
 /// Advance the simulation time to t+dt using a leap frog method
 ///
@@ -58,6 +59,12 @@ void cellPosition(Atoms *atoms, SpeciesData * species, int nAtoms, int iBox, rea
         atoms->r[iOff][0] += dt*atoms->p[iOff][0]*invMass;
         atoms->r[iOff][1] += dt*atoms->p[iOff][1]*invMass;
         atoms->r[iOff][2] += dt*atoms->p[iOff][2]*invMass;
+        //for(int i=0; i<3; i++) {
+        //    if(atoms->r[iOff][i] > sim->boxes->localMax[i] ||
+        //            atoms->r[iOff][i] < sim->boxes->localMin[i] ) {
+        //        printf("position for atom %d in box %d changing by %f to %f\n", iOff, iBox, dt*atoms->p[iOff][i]*invMass, atoms->r[iOff][i]);
+        //    }
+        //}
     }
 }
 
