@@ -303,7 +303,7 @@ real_t boxForcePart(SimFlat *s, int iBox, real3 iOffset, int jBox, real3 jOffset
                 real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
                 for (int m=0; m<3; m++) {
                     s->atoms->f[iOff][m] -= dr[m]*fr;
-                    //s->atoms->f[jOff][m] -= dr[m]*fr;
+                    s->atoms->f[jOff][m] += dr[m]*fr;
                 }
             }
         }
@@ -372,29 +372,36 @@ void clusterForce(SimFlat *s, int y, int z)
         for(int i=0; i<lenX-1; i++) {
             //row i with row i
             for(int j=1; j<4; j++) {
-                ePot += boxForcePart(s, dep[0]+i, offset[0], dep[j] + i, offset[j]);
+                ePot += boxForcePart(s, dep[0]+i, offset[0], dep[j]+i, offset[j]);
             }
+            ePot += boxForcePart(s, dep[1]+i, offset[1], dep[2]+i, offset[2]);
             //row i with row i+1
             for(int j=0; j<4; j++) {
-                for(int k=0; k<4; k++) {
-                    ePot += boxForcePart(s, dep[j]+i, offset[j], dep[k]+i, offset[k]);
-                }
+                ePot += boxForcePart(s, dep[0]+i, offset[0], dep[j]+(i+1), offset[j]);
             }
+            ePot += boxForcePart(s, dep[1]+ i   , offset[1], dep[2]+(i+1), offset[2]);
+            ePot += boxForcePart(s, dep[1]+(i+1), offset[1], dep[2]+ i   , offset[2]);
         }
 
         //last row with last row
         for(int j=1; j<4; j++) {
-            ePot += boxForcePart(s, dep[0]+lenX-1, offset[0], dep[j] + lenX-1, offset[j]);
+            ePot += boxForcePart(s, dep[0]+(lenX-1), offset[0], dep[j]+(lenX-1), offset[j]);
         }
+        ePot += boxForcePart(s, dep[1]+(lenX-1), offset[1], dep[2]+(lenX-1), offset[2]);
         real3 tmpOffset = {offsetX,0,0};
         //last row with first row
         for(int j=0; j<4; j++) {
-            for(int k=0; k<4; k++) {
-                tmpOffset[1] = offset[k][1];
-                tmpOffset[2] = offset[k][2];
-                ePot += boxForcePart(s, dep[j]+lenX-1, offset[j], dep[k], tmpOffset);
-            }
+            tmpOffset[1] = offset[j][1];
+            tmpOffset[2] = offset[j][2];
+            ePot += boxForcePart(s, dep[0]+lenX-1, offset[0], dep[j], tmpOffset);
         }
+        tmpOffset[1] = offset[2][1];
+        tmpOffset[2] = offset[2][2];
+        ePot += boxForcePart(s, dep[1]+(lenX-1), offset[1], dep[2], tmpOffset);
+
+        tmpOffset[1] = offset[1][1];
+        tmpOffset[2] = offset[1][2];
+        ePot += boxForcePart(s, dep[1], tmpOffset, dep[2]+(lenX-1), offset[2]);
         reductionArray[dep[0]] += ePot;
         //reductionArray[dep[1]] = 0;
         //reductionArray[dep[2]] = 0;
