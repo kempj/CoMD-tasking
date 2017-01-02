@@ -315,10 +315,36 @@ real_t boxForcePart(SimFlat *s, int iBox, real3 iOffset, int jBox, real3 jOffset
 
 //This might be better to send iBox and then an int[4] offset
 // as long as we shift correctly we can assume dep[0] is local.
-void clusterForce(SimFlat *s, int dep[4], real_t offsetY, real_t offsetZ)
+//void clusterForce(SimFlat *s, int dep[4], real_t offsetY, real_t offsetZ)
+void clusterForce(SimFlat *s, int y, int z)
 {
     real3  *atomF = s->atoms->f;
     real3  *atomR = s->atoms->r;
+
+    int *gridSize = s->boxes->gridSize;
+    int sizeZ = gridSize[1]*gridSize[0];
+    int sizeY = gridSize[0];
+
+    int dep[4];
+    dep[0] = (z+0)*sizeZ + (y+0)*sizeY;
+    dep[1] = (z+0)*sizeZ + (y+1)*sizeY;
+    dep[2] = (z+1)*sizeZ + (y+0)*sizeY;
+    dep[3] = (z+1)*sizeZ + (y+1)*sizeY;
+
+
+    if(y != gridSize[1]) {
+        dep[0] = (z+0)*sizeZ + (Yend)*sizeY;
+        dep[1] = (z+0)*sizeZ;
+        dep[2] = (z+1)*sizeZ + (Yend)*sizeY;
+        dep[3] = (z+1)*sizeZ;
+    }
+    if(z != gridSize[2]) {
+        dep[0] = Zend*sizeZ + (y+0)*sizeY;
+        dep[1] = Zend*sizeZ + (y+1)*sizeY;
+        dep[2] =      sizeZ + (y+0)*sizeY;
+        dep[3] =      sizeZ + (y+1)*sizeY;
+    }
+
 
 #pragma omp task depend(inout: reductionArray[dep[0]]) \
                  depend(  out: atomF[dep[0]*MAXATOMS], atomF[dep[1]*MAXATOMS], \
@@ -375,52 +401,28 @@ void clusterForce(SimFlat *s, int dep[4], real_t offsetY, real_t offsetZ)
 int ljForcePartial(SimFlat *s)
 {
     int *gridSize = s->boxes->gridSize;
-    int dep[4];
     int Zend = gridSize[2] - (gridSize[2] % 2);
     int Yend = gridSize[1] - (gridSize[1] % 2);
-    int sizeZ = gridSize[1]*gridSize[0];
-    int sizeY = gridSize[0];
 
-    real_t offsetY, offsetZ;
     //TODO: remember this needs to be done 4 times, shifted 
-    for(int z=0; z < Zend; z += 2) {
-        offsetY = offsetZ = 0;
-        for(int y=0; y < Yend; y += 2) {
-            dep[0] = (z+0)*sizeZ + (y+0)*sizeY;
-            dep[1] = (z+0)*sizeZ + (y+1)*sizeY;
-            dep[2] = (z+1)*sizeZ + (y+0)*sizeY;
-            dep[3] = (z+1)*sizeZ + (y+1)*sizeY;
-
-            clusterForce(s, dep, offsetY, offsetZ);
-        }
-        if(Yend != gridSize[1]) {
-            dep[0] = (z+0)*sizeZ + (Yend)*sizeY;
-            dep[1] = (z+0)*sizeZ;
-            dep[2] = (z+1)*sizeZ + (Yend)*sizeY;
-            dep[3] = (z+1)*sizeZ;
-            offsetY = s->boxes->localMax[1];
-
-            clusterForce(s, dep, offsetY, offsetZ);
-        }
-    }
-    if(Zend != gridSize[2]) {
-        offsetY = 0;
-        offsetZ = s->boxes->localMax[2];
-        for(int y=0; y < Yend; y += 2) {
-            dep[0] = Zend*sizeZ + (y+0)*sizeY;
-            dep[1] = Zend*sizeZ + (y+1)*sizeY;
-            dep[2] =      sizeZ + (y+0)*sizeY;
-            dep[3] =      sizeZ + (y+1)*sizeY;
-            clusterForce(s, dep, offsetY, offsetZ);
-        }
-        if(Yend != gridSize[1]) {
-            dep[0] = Zend*sizeZ + (Yend)*sizeY;
-            dep[1] = Zend*sizeZ;
-            dep[2] = 0          + (Yend)*sizeY;
-            dep[3] = 0;
-            offsetY = s->boxes->localMax[1];
-
-            clusterForce(s, dep, offsetY, offsetZ);
+    for(int i=0; i < 2; i++) {
+        for(int j=0; j < 2; j++) {
+            for(int z=i; z < Zend; z += 2) {
+                for(int y=j; y < Yend; y += 2) {
+                    clusterForce(s, y, z);
+                }
+                if(Yend != gridSize[1]) {
+                    clusterForce(s, Yend, z);
+                }
+            }
+            if(Zend != gridSize[2]) {
+                for(int y=0; y < Yend; y += 2) {
+                    clusterForce(s, y, Zend);
+                }
+                if(Yend != gridSize[1]) {
+                    clusterForce(s, Yend, Zend);
+                }
+            }
         }
     }
     ompReduceReal(reductionArray, s->boxes->nLocalBoxes, gridSize[0]);//TODO: remove extra tasks for 2x2 blocks
