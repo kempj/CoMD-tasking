@@ -95,6 +95,7 @@ typedef struct LjPotentialSt
 } LjPotential;
 
 static int ljForce(SimFlat* s);
+static int ljForcePartial(SimFlat* s);
 static void ljPrint(FILE* file, BasePotential* pot);
 
 
@@ -123,7 +124,8 @@ void ljDestroy(BasePotential** inppot)
 BasePotential* initLjPot(void)
 {
     LjPotential *pot = (LjPotential*)comdMalloc(sizeof(LjPotential));
-    pot->force = ljForce;
+    //pot->force = ljForce;
+    pot->force = ljForcePartial;
     pot->print = ljPrint;
     pot->destroy = ljDestroy;
     pot->sigma = 2.315;	                  // Angstrom
@@ -305,7 +307,7 @@ real_t boxForcePart(SimFlat *s, int iBox, real3 iOffset, int jBox, real3 jOffset
                 real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
                 for (int m=0; m<3; m++) {
                     s->atoms->f[iOff][m] -= dr[m]*fr;
-                    s->atoms->f[jOff][m] -= dr[m]*fr;
+                    //s->atoms->f[jOff][m] -= dr[m]*fr;
                 }
             }
         }
@@ -335,26 +337,29 @@ void clusterForce(SimFlat *s, int y, int z)
 
     if(y+1 == gridSize[1]) {
         offsetY = 1;
-        //dep[1] = dep[0] - (y*sizeY);
-        //dep[3] = dep[1] + sizeZ;
     }
     if(z+1 == gridSize[2]) {
         offsetZ = 1;
-        //dep[2] -= z*sizeZ;
-        //dep[3] -= z*sizeZ;
     }
-    dep[1] -= (offsetY * sizeY);
-    dep[2] -= (offsetZ * sizeZ);
-    dep[3] -= (offsetZ * sizeZ + offsetY * sizeY);
+    dep[1] -= (offsetY * sizeY * (y+1));
+    dep[2] -= (offsetZ * sizeZ * (z+1));
+    dep[3] -= (offsetZ * sizeZ*(z+1) + offsetY * sizeY*(y+1));
 
 
-#pragma omp task depend(inout: reductionArray[dep[0]]) \
-                 depend(  out: atomF[dep[0]*MAXATOMS], atomF[dep[1]*MAXATOMS], \
+#pragma omp task depend(inout: reductionArray[dep[0]], reductionArray[dep[1]], \
+                               reductionArray[dep[2]], reductionArray[dep[3]], \
+                               atomF[dep[0]*MAXATOMS], atomF[dep[1]*MAXATOMS], \
                                atomF[dep[2]*MAXATOMS], atomF[dep[3]*MAXATOMS]) \
                  depend(   in: atomR[dep[0]*MAXATOMS], atomR[dep[1]*MAXATOMS], \
                                atomR[dep[2]*MAXATOMS], atomR[dep[3]*MAXATOMS])
     {
         startTimer(computeForceTimer);
+//        printf("force being calculate for rows %d, %d, %d, %d\n", dep[0], dep[1], dep[2], dep[3]);
+//        printf("\t(%d, %d), (%d, %d),\n\t(%d, %d), (%d, %d)\n", 
+//                (dep[0]/sizeZ), (dep[0]%sizeZ)/sizeY,
+//                (dep[1]/sizeZ), (dep[1]%sizeZ)/sizeY,
+//                (dep[2]/sizeZ), (dep[2]%sizeZ)/sizeY,
+//                (dep[3]/sizeZ), (dep[3]%sizeZ)/sizeY);
 
         real_t ePot = 0;
         real3 offset[4];
@@ -366,9 +371,9 @@ void clusterForce(SimFlat *s, int y, int z)
         offset[3][2] = offsetZ;
 
         int offsetX = s->boxes->localMax[0];
-        int sizeX = s->boxes->gridSize[0];
+        int lenX = s->boxes->gridSize[0];
 
-        for(int i=0; i<sizeX-1; i++) {
+        for(int i=0; i<lenX-1; i++) {
             //row i with row i
             for(int j=1; j<4; j++) {
                 ePot += boxForcePart(s, dep[0]+i, offset[0], dep[j] + i, offset[j]);
@@ -383,7 +388,7 @@ void clusterForce(SimFlat *s, int y, int z)
 
         //last row with last row
         for(int j=1; j<4; j++) {
-            ePot += boxForcePart(s, dep[0]+sizeX-1, offset[0], dep[j] + sizeX-1, offset[j]);
+            ePot += boxForcePart(s, dep[0]+lenX-1, offset[0], dep[j] + lenX-1, offset[j]);
         }
         real3 tmpOffset = {offsetX,0,0};
         //last row with first row
@@ -391,10 +396,13 @@ void clusterForce(SimFlat *s, int y, int z)
             for(int k=0; k<4; k++) {
                 tmpOffset[1] = offset[k][1];
                 tmpOffset[2] = offset[k][2];
-                ePot += boxForcePart(s, dep[j]+sizeX-1, offset[j], dep[k], tmpOffset);
+                ePot += boxForcePart(s, dep[j]+lenX-1, offset[j], dep[k], tmpOffset);
             }
         }
         reductionArray[dep[0]] += ePot;
+        reductionArray[dep[1]] = 0;
+        reductionArray[dep[2]] = 0;
+        reductionArray[dep[3]] = 0;
 
         stopTimer(computeForceTimer);
     }
@@ -406,7 +414,6 @@ int ljForcePartial(SimFlat *s)
     int Zend = gridSize[2] - (gridSize[2] % 2);
     int Yend = gridSize[1] - (gridSize[1] % 2);
 
-    //TODO: remember this needs to be done 4 times, shifted 
     for(int i=0; i < 2; i++) {
         for(int j=0; j < 2; j++) {
             for(int z=i; z < Zend; z += 2) {
