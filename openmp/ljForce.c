@@ -326,23 +326,19 @@ void clusterForce(SimFlat *s, int y, int z)
     int sizeY = gridSize[0];
 
     int dep[4];
-    dep[0] = (z+0)*sizeZ + (y+0)*sizeY;
-    dep[1] = (z+0)*sizeZ + (y+1)*sizeY;
-    dep[2] = (z+1)*sizeZ + (y+0)*sizeY;
-    dep[3] = (z+1)*sizeZ + (y+1)*sizeY;
+    dep[0] = z*sizeZ + y*sizeY;
+    dep[1] = dep[0] + sizeY;        
+    dep[2] = dep[0] + sizeZ;        
+    dep[3] = dep[0] + sizeY + sizeZ;
 
 
-    if(y != gridSize[1]) {
-        dep[0] = (z+0)*sizeZ + (Yend)*sizeY;
-        dep[1] = (z+0)*sizeZ;
-        dep[2] = (z+1)*sizeZ + (Yend)*sizeY;
-        dep[3] = (z+1)*sizeZ;
+    if(y+1 == gridSize[1]) {
+        dep[1] = dep[0] - (y*sizeY);
+        dep[3] = dep[1] + sizeZ;
     }
-    if(z != gridSize[2]) {
-        dep[0] = Zend*sizeZ + (y+0)*sizeY;
-        dep[1] = Zend*sizeZ + (y+1)*sizeY;
-        dep[2] =      sizeZ + (y+0)*sizeY;
-        dep[3] =      sizeZ + (y+1)*sizeY;
+    if(z+1 == gridSize[2]) {
+        dep[2] -= z*sizeZ;
+        dep[3] -= z*sizeZ;
     }
 
 
