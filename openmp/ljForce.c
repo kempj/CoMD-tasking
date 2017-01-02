@@ -325,21 +325,27 @@ void clusterForce(SimFlat *s, int y, int z)
     int sizeZ = gridSize[1]*gridSize[0];
     int sizeY = gridSize[0];
 
+    int offsetY = 0;
+    int offsetZ = 0;
     int dep[4];
     dep[0] = z*sizeZ + y*sizeY;
     dep[1] = dep[0] + sizeY;        
     dep[2] = dep[0] + sizeZ;        
     dep[3] = dep[0] + sizeY + sizeZ;
 
-
     if(y+1 == gridSize[1]) {
-        dep[1] = dep[0] - (y*sizeY);
-        dep[3] = dep[1] + sizeZ;
+        offsetY = 1;
+        //dep[1] = dep[0] - (y*sizeY);
+        //dep[3] = dep[1] + sizeZ;
     }
     if(z+1 == gridSize[2]) {
-        dep[2] -= z*sizeZ;
-        dep[3] -= z*sizeZ;
+        offsetZ = 1;
+        //dep[2] -= z*sizeZ;
+        //dep[3] -= z*sizeZ;
     }
+    dep[1] -= (offsetY * sizeY);
+    dep[2] -= (offsetZ * sizeZ);
+    dep[3] -= (offsetZ * sizeZ + offsetY * sizeY);
 
 
 #pragma omp task depend(inout: reductionArray[dep[0]]) \
