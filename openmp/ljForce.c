@@ -411,6 +411,10 @@ void clusterForce(SimFlat *s, int y, int z)
             for(int j=0; j<4; j++) {
                 ePot += boxForcePart(s, dep[0]+i, offset[0], dep[j]+(i+1), offset[j]);
             }
+            //down from dep[3] to dep[1]+i+1
+            ePot += boxForcePart(s, dep[3]+ i   , offset[3], dep[1]+(i+1), offset[1]);
+            //down from dep[3] to dep[2]+i+1
+            ePot += boxForcePart(s, dep[3]+ i   , offset[3], dep[2]+(i+1), offset[2]);
             //down from dep[3] to dep[0]+i+1
             ePot += boxForcePart(s, dep[3]+ i   , offset[3], dep[0]+(i+1), offset[0]);
             //printf("should be 1 (%d) interacting with 2 in the next level (%d):\n", dep[1]+i, dep[2]+i+1);
@@ -433,6 +437,15 @@ void clusterForce(SimFlat *s, int y, int z)
             tmpOffset[2] = offset[j][2];
             ePot += boxForcePart(s, dep[0]+lenX-1, offset[0], dep[j], tmpOffset);
         }
+
+        tmpOffset[1] = offset[1][1];
+        tmpOffset[2] = offset[1][2];
+        ePot += boxForcePart(s, dep[3]+(lenX-1), offset[3], dep[1], tmpOffset);
+
+        tmpOffset[1] = offset[2][1];
+        tmpOffset[2] = offset[2][2];
+        ePot += boxForcePart(s, dep[3]+(lenX-1), offset[3], dep[2], tmpOffset);
+
         tmpOffset[1] = offset[0][1];
         tmpOffset[2] = offset[0][2];
         ePot += boxForcePart(s, dep[3]+(lenX-1), offset[3], dep[0], tmpOffset);
