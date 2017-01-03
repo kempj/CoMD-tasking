@@ -371,10 +371,11 @@ void clusterForce(SimFlat *s, int y, int z)
 
         for(int i=0; i<lenX-1; i++) {
             //row i with row i
-            for(int j=1; j<4; j++) {
+            for(int j=0; j<4; j++) {
                 ePot += boxForcePart(s, dep[0]+i, offset[0], dep[j]+i, offset[j]);
             }
             ePot += boxForcePart(s, dep[1]+i, offset[1], dep[2]+i, offset[2]);
+
             //row i with row i+1
             for(int j=0; j<4; j++) {
                 ePot += boxForcePart(s, dep[0]+i, offset[0], dep[j]+(i+1), offset[j]);
@@ -384,12 +385,13 @@ void clusterForce(SimFlat *s, int y, int z)
         }
 
         //last row with last row
-        for(int j=1; j<4; j++) {
+        for(int j=0; j<4; j++) {
             ePot += boxForcePart(s, dep[0]+(lenX-1), offset[0], dep[j]+(lenX-1), offset[j]);
         }
         ePot += boxForcePart(s, dep[1]+(lenX-1), offset[1], dep[2]+(lenX-1), offset[2]);
-        real3 tmpOffset = {offsetX,0,0};
+
         //last row with first row
+        real3 tmpOffset = {offsetX,0,0};
         for(int j=0; j<4; j++) {
             tmpOffset[1] = offset[j][1];
             tmpOffset[2] = offset[j][2];
@@ -398,7 +400,6 @@ void clusterForce(SimFlat *s, int y, int z)
         tmpOffset[1] = offset[2][1];
         tmpOffset[2] = offset[2][2];
         ePot += boxForcePart(s, dep[1]+(lenX-1), offset[1], dep[2], tmpOffset);
-
         tmpOffset[1] = offset[1][1];
         tmpOffset[2] = offset[1][2];
         ePot += boxForcePart(s, dep[1], tmpOffset, dep[2]+(lenX-1), offset[2]);
@@ -414,24 +415,30 @@ void clusterForce(SimFlat *s, int y, int z)
 int ljForcePartial(SimFlat *s)
 {
     int *gridSize = s->boxes->gridSize;
-    int Zend = gridSize[2] - (gridSize[2] % 2);
-    int Yend = gridSize[1] - (gridSize[1] % 2);
+    //int Zend = gridSize[2] - (gridSize[2] % 2);
+    //int Yend = gridSize[1] - (gridSize[1] % 2);
+    int Zend = gridSize[2];
+    int Yend = gridSize[1];
 
     for(int i=0; i < 2; i++) {
         for(int j=0; j < 2; j++) {
-            for(int z=i; z < Zend; z += 2) {
-                for(int y=j; y < Yend; y += 2) {
+            int z,y;
+            for(z=i; z < Zend; z += 2) {
+                for(y=j; y < Yend; y += 2) {
                     clusterForce(s, y, z);
                 }
-                if(Yend != gridSize[1]) {
+                //if(Yend != gridSize[1]) {
+                if(y != Yend) {
                     clusterForce(s, Yend, z);
                 }
             }
-            if(Zend != gridSize[2]) {
+            //if(Zend != gridSize[2]) {
+            if(z != Zend) {
                 for(int y=0; y < Yend; y += 2) {
                     clusterForce(s, y, Zend);
                 }
-                if(Yend != gridSize[1]) {
+                //if(Yend != gridSize[1]) {
+                if(y != Yend) {
                     clusterForce(s, Yend, Zend);
                 }
             }
