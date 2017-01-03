@@ -286,6 +286,8 @@ real_t boxForcePart(SimFlat *s, int iBox, real3 iOffset, int jBox, real3 jOffset
     int nJBox = s->boxes->nAtoms[jBox];
     for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
         for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
+            if (jBox == iBox && jOff <= iOff)
+                continue; 
             real3 dr;
             real_t r2 = 0.0;
             for(int m=0; m<3; m++) {
@@ -296,9 +298,7 @@ real_t boxForcePart(SimFlat *s, int iBox, real3 iOffset, int jBox, real3 jOffset
                 r2 = 1.0/r2;
                 real_t r6 = s6 * (r2*r2*r2);
                 real_t eLocal = r6 * (r6 - 1.0) - eShift;
-                //Changed to account for any pair of cells only interacting once.
-                //ePot += 0.5*eLocal;
-                ePot += eLocal;
+                ePot += eLocal; //Changed to account for any pair of cells only interacting once.
 
                 real_t fr = - 4.0*epsilon*r6*r2*(12.0*r6 - 6.0);
                 for (int m=0; m<3; m++) {
@@ -332,23 +332,18 @@ void clusterForce(SimFlat *s, int y, int z)
     dep[3] = dep[0] + sizeY + sizeZ;//is this correct?
 
     if(y+1 == gridSize[1]) {
-        //printf("offset Y\n");
         offsetYmult = 1;
     }
     if(z+1 == gridSize[2]) {
-        //printf("offset Z\n");
         offsetZmult = 1;
     }
     dep[1] -= (offsetYmult * sizeY * (y+1));
     dep[2] -= (offsetZmult * sizeZ * (z+1));
-    if((offsetYmult + offsetZmult ) > 0 ) 
-        //printf("dep3 goes from %d to ", dep[3]); 
     dep[3] -= (offsetZmult * sizeZ*(z+1) + offsetYmult * sizeY*(y+1));
-    if((offsetYmult + offsetZmult ) > 0 ) 
-        //printf("to %d due to shift\n", dep[3] );
 
     //printf("[%d,%d] (%3d, %3d, %3d, %3d)  ", z, y, dep[0]/gridSize[0], dep[1]/gridSize[0], dep[2]/gridSize[0], dep[3]/gridSize[0]);
     //printf("[%2d,%2d] %3d, %3d\n        %3d, %3d\n", z, y, dep[0], dep[1], dep[2], dep[3]);
+    //printf("%3d ",dep[0]/gridSize[0]);
 
 #pragma omp task depend(inout: reductionArray[dep[0]], reductionArray[dep[1]], \
                                reductionArray[dep[2]], reductionArray[dep[3]], \
@@ -369,12 +364,12 @@ void clusterForce(SimFlat *s, int y, int z)
         real3 offset[4];
         for(int i=0; i < 4; i++)
             zeroReal3(offset[i]);
-        offset[1][1] = offsetYmult * s->boxes->localMax[1];
-        offset[2][2] = offsetZmult * s->boxes->localMax[2];
-        offset[3][1] = offsetYmult * s->boxes->localMax[1];
-        offset[3][2] = offsetZmult * s->boxes->localMax[2];
+        offset[1][1] = ((real_t)offsetYmult) * s->boxes->localMax[1];
+        offset[2][2] = ((real_t)offsetZmult) * s->boxes->localMax[2];
+        offset[3][1] = ((real_t)offsetYmult) * s->boxes->localMax[1];
+        offset[3][2] = ((real_t)offsetZmult) * s->boxes->localMax[2];
 
-        int offsetX = s->boxes->localMax[0];
+        real_t offsetX = s->boxes->localMax[0];
         int lenX = s->boxes->gridSize[0];
 
         for(int i=0; i<lenX-1; i++) {
@@ -423,7 +418,7 @@ int ljForcePartial(SimFlat *s)
     int Zend = gridSize[2];
     int Yend = gridSize[1];
 
-    //printf("\ncreating tasks for blocks (%d x %d)\n", Zend, Yend);
+    //printf("entering forcepartial\n");
     for(int i=0; i < 2; i++) {
         //printf("shift i %d\n", i);
         for(int j=0; j < 2; j++) {
