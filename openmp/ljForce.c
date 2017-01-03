@@ -323,24 +323,32 @@ void clusterForce(SimFlat *s, int y, int z)
     int sizeZ = gridSize[1]*gridSize[0];
     int sizeY = gridSize[0];
 
-    int offsetY = 0;
-    int offsetZ = 0;
+    int offsetYmult = 0;
+    int offsetZmult = 0;
     int dep[4];
     dep[0] = z*sizeZ + y*sizeY;
     dep[1] = dep[0] + sizeY;        
     dep[2] = dep[0] + sizeZ;        
-    dep[3] = dep[0] + sizeY + sizeZ;
+    dep[3] = dep[0] + sizeY + sizeZ;//is this correct?
 
     if(y+1 == gridSize[1]) {
-        offsetY = 1;
+        //printf("offset Y\n");
+        offsetYmult = 1;
     }
     if(z+1 == gridSize[2]) {
-        offsetZ = 1;
+        //printf("offset Z\n");
+        offsetZmult = 1;
     }
-    dep[1] -= (offsetY * sizeY * (y+1));
-    dep[2] -= (offsetZ * sizeZ * (z+1));
-    dep[3] -= (offsetZ * sizeZ*(z+1) + offsetY * sizeY*(y+1));
+    dep[1] -= (offsetYmult * sizeY * (y+1));
+    dep[2] -= (offsetZmult * sizeZ * (z+1));
+    if((offsetYmult + offsetZmult ) > 0 ) 
+        //printf("dep3 goes from %d to ", dep[3]); 
+    dep[3] -= (offsetZmult * sizeZ*(z+1) + offsetYmult * sizeY*(y+1));
+    if((offsetYmult + offsetZmult ) > 0 ) 
+        //printf("to %d due to shift\n", dep[3] );
 
+    //printf("[%d,%d] (%3d, %3d, %3d, %3d)  ", z, y, dep[0]/gridSize[0], dep[1]/gridSize[0], dep[2]/gridSize[0], dep[3]/gridSize[0]);
+    //printf("[%2d,%2d] %3d, %3d\n        %3d, %3d\n", z, y, dep[0], dep[1], dep[2], dep[3]);
 
 #pragma omp task depend(inout: reductionArray[dep[0]], reductionArray[dep[1]], \
                                reductionArray[dep[2]], reductionArray[dep[3]], \
@@ -361,10 +369,10 @@ void clusterForce(SimFlat *s, int y, int z)
         real3 offset[4];
         for(int i=0; i < 4; i++)
             zeroReal3(offset[i]);
-        offset[1][1] = offsetY;
-        offset[2][2] = offsetZ;
-        offset[3][1] = offsetY;
-        offset[3][2] = offsetZ;
+        offset[1][1] = offsetYmult * s->boxes->localMax[1];
+        offset[2][2] = offsetZmult * s->boxes->localMax[2];
+        offset[3][1] = offsetYmult * s->boxes->localMax[1];
+        offset[3][2] = offsetZmult * s->boxes->localMax[2];
 
         int offsetX = s->boxes->localMax[0];
         int lenX = s->boxes->gridSize[0];
@@ -404,9 +412,6 @@ void clusterForce(SimFlat *s, int y, int z)
         tmpOffset[2] = offset[1][2];
         ePot += boxForcePart(s, dep[1], tmpOffset, dep[2]+(lenX-1), offset[2]);
         reductionArray[dep[0]] += ePot;
-        //reductionArray[dep[1]] = 0;
-        //reductionArray[dep[2]] = 0;
-        //reductionArray[dep[3]] = 0;
 
         stopTimer(computeForceTimer);
     }
@@ -415,35 +420,38 @@ void clusterForce(SimFlat *s, int y, int z)
 int ljForcePartial(SimFlat *s)
 {
     int *gridSize = s->boxes->gridSize;
-    //int Zend = gridSize[2] - (gridSize[2] % 2);
-    //int Yend = gridSize[1] - (gridSize[1] % 2);
     int Zend = gridSize[2];
     int Yend = gridSize[1];
 
+    //printf("\ncreating tasks for blocks (%d x %d)\n", Zend, Yend);
     for(int i=0; i < 2; i++) {
+        //printf("shift i %d\n", i);
         for(int j=0; j < 2; j++) {
+            //printf("shift j %d\n", j);
             int z,y;
             for(z=i; z < Zend; z += 2) {
                 for(y=j; y < Yend; y += 2) {
                     clusterForce(s, y, z);
                 }
-                //if(Yend != gridSize[1]) {
-                if(y != Yend) {
+                if(y < Yend) {
                     clusterForce(s, Yend, z);
                 }
+                //printf("\n");
             }
-            //if(Zend != gridSize[2]) {
-            if(z != Zend) {
+            if(z < Zend) {
                 for(int y=0; y < Yend; y += 2) {
                     clusterForce(s, y, Zend);
                 }
-                //if(Yend != gridSize[1]) {
-                if(y != Yend) {
+                if(y < Yend) {
                     clusterForce(s, Yend, Zend);
                 }
+                //printf("\n");
             }
+            //printf("\n");
         }
+        //printf("\n");
     }
+    //printf("\n\n");
     ompReduceReal(reductionArray, s->boxes->nLocalBoxes, gridSize[0]);
 
     real_t *ePotential = &(s->ePotential);
