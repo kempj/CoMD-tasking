@@ -99,6 +99,7 @@ static int ljForcePartial(SimFlat* s);
 static void ljPrint(FILE* file, BasePotential* pot);
 
 
+int *countArray;
 extern double *reductionArray;
 
 real_t rCut;
@@ -211,6 +212,7 @@ real_t boxForce(int iBox, SimFlat *s)
                 int realJBox = getBoxFromTuple(s->boxes, i+xyz[0]-1, j+xyz[1]-1, k+xyz[2]-1);
                 int jBox = getLocalHaloTuple(s->boxes, realJBox);
                 int nJBox = s->boxes->nAtoms[jBox];
+                //countArray[iBox]++;
                 for(int iOff=MAXATOMS*iBox; iOff<(iBox*MAXATOMS+nIBox); iOff++) {
                     for(int jOff=jBox*MAXATOMS; jOff<(jBox*MAXATOMS+nJBox); jOff++) {
                         real3 dr;
@@ -245,6 +247,7 @@ int ljForce(SimFlat* s)
     real3  *atomR = s->atoms->r;
     int dep[9];
 
+    //countArray = calloc(s->boxes->nLocalBoxes, sizeof(int));
     for(int z=0; z < s->boxes->gridSize[2]; z++) {
         for(int y=0; y < s->boxes->gridSize[1]; y++) {
             int rowBox = z*s->boxes->gridSize[1]*s->boxes->gridSize[0] + y*s->boxes->gridSize[0];
@@ -264,6 +267,19 @@ int ljForce(SimFlat* s)
             }
         }
     }
+#pragma omp taskwait
+    //int sizeX = gridSize[0];
+    //int sizeY = gridSize[1];
+    //for(int i=0; i<gridSize[2]; i++) {
+    //    for(int j=0; j<gridSize[1]; j++) {
+    //        for(int k=0; k<gridSize[0]; k++) {
+    //            printf("%d ", countArray[i*sizeY*sizeX + j*sizeX + k]);
+    //        }
+    //        printf("\n");
+    //    }
+    //    printf("\n");
+    //}
+    //printf("\n");
     ompReduceReal(reductionArray, s->boxes->nLocalBoxes, gridSize[0]);
 
     real_t *ePotential = &(s->ePotential);
@@ -278,8 +294,20 @@ int ljForce(SimFlat* s)
     return 0;
 }
 
+
 real_t boxForcePart(SimFlat *s, int iBox, real3 iOffset, int jBox, real3 jOffset)
 {
+    countArray[iBox]++;
+    countArray[jBox]++;
+    int x, y, z;
+    int testBox = 36+6+1;
+    if(iBox ==  testBox){
+        getTuple(s->boxes, jBox, &x, &y, &z);
+        printf("iBox = %d interacting with jbox %2d (%d, %d, %d)\n", iBox, jBox, z, y, x);
+    } else if(jBox == testBox ){
+        getTuple(s->boxes, iBox, &x, &y, &z);
+        printf("iBox = %d interacting with jbox %2d (%d, %d, %d)\n", jBox, iBox, z, y, x);
+    }
     int nIBox = s->boxes->nAtoms[iBox];
     real_t ePot = 0;
 
@@ -383,8 +411,13 @@ void clusterForce(SimFlat *s, int y, int z)
             for(int j=0; j<4; j++) {
                 ePot += boxForcePart(s, dep[0]+i, offset[0], dep[j]+(i+1), offset[j]);
             }
+            //down from dep[3] to dep[0]+i+1
+            ePot += boxForcePart(s, dep[3]+ i   , offset[3], dep[0]+(i+1), offset[0]);
+            //printf("should be 1 (%d) interacting with 2 in the next level (%d):\n", dep[1]+i, dep[2]+i+1);
             ePot += boxForcePart(s, dep[1]+ i   , offset[1], dep[2]+(i+1), offset[2]);
+            //printf("should be 2 (%d) interacting with 1 in the next level (%d):\n", dep[2]+i, dep[1]+i+1);
             ePot += boxForcePart(s, dep[1]+(i+1), offset[1], dep[2]+ i   , offset[2]);
+            
         }
 
         //last row with last row
@@ -400,6 +433,10 @@ void clusterForce(SimFlat *s, int y, int z)
             tmpOffset[2] = offset[j][2];
             ePot += boxForcePart(s, dep[0]+lenX-1, offset[0], dep[j], tmpOffset);
         }
+        tmpOffset[1] = offset[0][1];
+        tmpOffset[2] = offset[0][2];
+        ePot += boxForcePart(s, dep[3]+(lenX-1), offset[3], dep[0], tmpOffset);
+
         tmpOffset[1] = offset[2][1];
         tmpOffset[2] = offset[2][2];
         ePot += boxForcePart(s, dep[1]+(lenX-1), offset[1], dep[2], tmpOffset);
@@ -418,6 +455,7 @@ int ljForcePartial(SimFlat *s)
     int Zend = gridSize[2];
     int Yend = gridSize[1];
 
+    countArray = calloc(s->boxes->nLocalBoxes, sizeof(int));
     //printf("entering forcepartial\n");
     for(int i=0; i < 2; i++) {
         //printf("shift i %d\n", i);
@@ -442,11 +480,24 @@ int ljForcePartial(SimFlat *s)
                 }
                 //printf("\n");
             }
-            //printf("\n");
+#pragma omp taskwait
+            printf("\n");
         }
         //printf("\n");
     }
     //printf("\n\n");
+    int sizeX = gridSize[0];
+    int sizeY = gridSize[1];
+    for(int i=0; i<gridSize[2]; i++) {
+        for(int j=0; j<gridSize[1]; j++) {
+            for(int k=0; k<gridSize[0]; k++) {
+                printf("%d ", countArray[i*sizeY*sizeX + j*sizeX + k]);
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
+    printf("\n");
     ompReduceReal(reductionArray, s->boxes->nLocalBoxes, gridSize[0]);
 
     real_t *ePotential = &(s->ePotential);
